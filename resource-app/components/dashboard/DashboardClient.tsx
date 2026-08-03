@@ -1,0 +1,240 @@
+"use client";
+
+import {
+  Users,
+  BatteryLow,
+  Zap,
+  Clock,
+  Gauge,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
+
+import { ChartBar, ChartDonut, type Datum } from "@/components/charts/ChartKit";
+import { Panel, PanelTitle, StatCard } from "@/components/ui/kit";
+import { CHART_SERIES, SKILLSET_COLORS } from "@/lib/format";
+import type { Consultant } from "@/lib/types";
+
+const REF = new Date("2026-07-06T00:00:00Z");
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+function weeksUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.round((d.getTime() - REF.getTime()) / MS_PER_WEEK);
+}
+
+function countBy(list: Consultant[], key: (c: Consultant) => string): Datum[] {
+  const map = new Map<string, number>();
+  for (const c of list) {
+    const k = key(c) || "Unknown";
+    map.set(k, (map.get(k) ?? 0) + 1);
+  }
+  return [...map.entries()].map(([name, value]) => ({ name, value }));
+}
+
+const RANK_ORDER = ["Intern", "Associate", "Senior", "Manager"];
+
+export function DashboardClient({ consultants }: { consultants: Consultant[] }) {
+  const router = useRouter();
+  const go = (params: Record<string, string>) => {
+    const sp = new URLSearchParams(params);
+    router.push(`/resources?${sp.toString()}`);
+  };
+
+  const stats = useMemo(() => {
+    const total = consultants.length;
+    const onBench = consultants.filter((c) => c.currentAllocation === 0).length;
+    const spare = consultants.filter((c) => c.availableNow > 0).length;
+    const rollingOff = consultants.filter((c) => {
+      const w = weeksUntil(c.endDate);
+      return w != null && w >= 0 && w <= 6;
+    }).length;
+    const avgUtil =
+      total === 0
+        ? 0
+        : Math.round(
+            (consultants.reduce((s, c) => s + c.currentAllocation, 0) / total) *
+              100,
+          );
+    return { total, onBench, spare, rollingOff, avgUtil };
+  }, [consultants]);
+
+  const byRank = useMemo(() => {
+    const d = countBy(consultants, (c) => c.rank);
+    return d.sort(
+      (a, b) =>
+        (RANK_ORDER.indexOf(a.name) + 99) % 100 -
+        ((RANK_ORDER.indexOf(b.name) + 99) % 100),
+    );
+  }, [consultants]);
+
+  const byGender = useMemo(
+    () =>
+      countBy(consultants, (c) => c.gender).map((d) => ({
+        ...d,
+        color: d.name === "Female" ? "#FFE600" : "#2E2E38",
+      })),
+    [consultants],
+  );
+
+  const byNationality = useMemo(
+    () => countBy(consultants, (c) => c.nationality),
+    [consultants],
+  );
+
+  const bySkillset = useMemo(
+    () =>
+      countBy(consultants, (c) => c.skillsetCategory).map((d) => ({
+        ...d,
+        color: SKILLSET_COLORS[d.name] ?? "#2E2E38",
+      })),
+    [consultants],
+  );
+
+  const byStatus = useMemo(() => {
+    const buckets = {
+      "On bench": 0,
+      "Partially available": 0,
+      "Rolling off <=6w": 0,
+      "Fully allocated": 0,
+    };
+    for (const c of consultants) {
+      if (c.currentAllocation === 0) buckets["On bench"]++;
+      else if (c.availableNow > 0) buckets["Partially available"]++;
+      else {
+        const w = weeksUntil(c.endDate);
+        if (w != null && w >= 0 && w <= 6) buckets["Rolling off <=6w"]++;
+        else buckets["Fully allocated"]++;
+      }
+    }
+    const colors: Record<string, string> = {
+      "On bench": "#B8202E",
+      "Partially available": "#FFE600",
+      "Rolling off <=6w": "#B35C00",
+      "Fully allocated": "#2E2E38",
+    };
+    return Object.entries(buckets).map(([name, value]) => ({
+      name,
+      value,
+      color: colors[name],
+    }));
+  }, [consultants]);
+
+  const byRolloff = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of consultants) {
+      if (!c.endDate) continue;
+      const d = new Date(c.endDate + "T00:00:00Z");
+      const key = d.toLocaleDateString("en-GB", {
+        month: "short",
+        year: "2-digit",
+        timeZone: "UTC",
+      });
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    const sorted = [...map.entries()].sort(
+      (a, b) =>
+        new Date("01 " + a[0]).getTime() - new Date("01 " + b[0]).getTime(),
+    );
+    return sorted.map(([name, value], i) => ({
+      name,
+      value,
+      color: CHART_SERIES[i % CHART_SERIES.length],
+    }));
+  }, [consultants]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-ey-black">
+          Resource dashboard
+        </h1>
+        <p className="mt-1 text-sm text-ey-gray">
+          Live bench &amp; availability overview. Click any chart segment to drill
+          into the roster.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <StatCard
+          label="Total Resources"
+          value={stats.total}
+          accent="ink"
+          icon={<Users size={18} />}
+        />
+        <StatCard
+          label="On Bench Now"
+          value={stats.onBench}
+          accent="danger"
+          icon={<BatteryLow size={18} />}
+          sub="0% allocated"
+        />
+        <StatCard
+          label="Spare Capacity"
+          value={stats.spare}
+          accent="success"
+          icon={<Zap size={18} />}
+          sub="have free hours this week"
+        />
+        <StatCard
+          label="Rolling Off <=6w"
+          value={stats.rollingOff}
+          accent="warning"
+          icon={<Clock size={18} />}
+        />
+        <StatCard
+          label="Avg Utilization"
+          value={`${stats.avgUtil}%`}
+          accent="yellow"
+          icon={<Gauge size={18} />}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Panel hover>
+          <PanelTitle>Resources by Rank</PanelTitle>
+          <ChartBar data={byRank} onSelect={(name) => go({ rank: name })} />
+        </Panel>
+
+        <Panel hover>
+          <PanelTitle>Resources by Skillset</PanelTitle>
+          <ChartBar data={bySkillset} onSelect={(name) => go({ skillset: name })} />
+        </Panel>
+
+        <Panel hover>
+          <PanelTitle>By Gender</PanelTitle>
+          <ChartDonut data={byGender} onSelect={(name) => go({ gender: name })} />
+        </Panel>
+
+        <Panel hover>
+          <PanelTitle>By Nationality</PanelTitle>
+          <ChartDonut
+            data={byNationality}
+            onSelect={(name) => go({ nationality: name })}
+          />
+        </Panel>
+
+        <Panel hover>
+          <PanelTitle>Availability Status</PanelTitle>
+          <ChartBar
+            data={byStatus}
+            vertical
+            onSelect={(name) => {
+              if (name === "On bench") go({ availability: "bench" });
+              else if (name === "Partially available") go({ availability: "spare" });
+              else if (name.startsWith("Rolling"))
+                go({ availability: "within", withinWeeks: "6" });
+            }}
+          />
+        </Panel>
+
+        <Panel hover>
+          <PanelTitle>Engagement Roll-off (by end month)</PanelTitle>
+          <ChartBar data={byRolloff} />
+        </Panel>
+      </div>
+    </div>
+  );
+}

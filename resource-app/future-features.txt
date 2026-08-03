@@ -1,0 +1,51 @@
+FUTURE FEATURE NOTES — NEXUS Resource Grid
+==========================================
+Status: ideas only — not implemented yet.
+
+
+1) Market-aware certification & skill recommendations
+----------------------------------------------------
+The system should periodically (or on demand) learn from the public internet
+about the latest developments in data and AI — e.g. emerging tools, frameworks,
+platform shifts, industry hiring signals, and new certification programmes.
+
+Using that fresh external context, it should recommend:
+  - skillsets the firm should grow (by practice area / rank)
+  - specific certifications or learning paths for individuals and for the
+    organisation as a whole
+
+These recommendations should stay grounded in the current roster (what we
+already have) so the output is "gap vs market", not generic training spam.
+
+Open design questions:
+  - How often to refresh market intel (daily / weekly / on button click)?
+  - Which sources to trust (vendor blogs, standards bodies, job market signals)?
+  - How to show "as of date" so users know how fresh the advice is?
+
+
+2) Admin strategy chat with persistent memory
+---------------------------------------------
+An admin (or partner / practice lead) should be able to chat with the AI about
+the firm's big-picture targets — e.g. "we want to double GenAI delivery capacity
+in 12 months", "enter healthcare vertical", "reduce bench by focusing on MLOps".
+
+That guidance should be:
+  - saved to a durable memory store (not just the current chat session)
+  - editable / reviewable by admins later
+  - automatically injected into relevant AI prompts (cert recommendations,
+    staffing, growth, org-wide skill-gap analysis, etc.)
+
+So every AI feature can stay aligned with leadership strategy instead of only
+looking at the Excel roster in isolation.
+
+Open design questions:
+  - Who can write vs only read strategy memory?
+  - Version history / audit trail when targets change?
+  - How much of the memory is summarised into prompts vs retrieved raw?
+
+
+Relationship between the two
+----------------------------
+Market intel answers: "What is the world demanding now?"
+Admin memory answers: "What does this firm specifically want?"
+Certification / skill recommendations should combine both.

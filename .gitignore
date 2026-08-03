@@ -1,0 +1,27 @@
+# secrets / credentials
+api-key.txt
+.env
+.env.local
+.env*.local
+
+# dependencies & build output
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Excel lock files created while a workbook is open
+~$*.xlsx
+
+# reference-only copy of the older TDHR project
+tdhr-main/
+tdhr-main.zip
+
+# python
+__pycache__/
+*.pyc
+
+# os
+.DS_Store
+Thumbs.db

@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-ey-offwhite text-ey-ink antialiased;
+    min-height: 100%;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    @apply text-ey-black;
+    letter-spacing: -0.011em;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-ey-gray-100 bg-white shadow-card;
+  }
+
+  .panel-hover {
+    @apply transition-shadow duration-200 hover:shadow-card-hover;
+  }
+
+  /* EY yellow highlight behind a word or two of a heading. */
+  .ey-mark {
+    @apply bg-ey-yellow px-1.5 text-ey-black;
+  }
+
+  /* Short yellow rule used to lead a section heading. */
+  .ey-rule {
+    @apply h-4 w-1 rounded-sm bg-ey-yellow;
+  }
+
+  .ey-divider {
+    @apply h-px w-full bg-ey-gray-100;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-ey-yellow text-ey-black hover:bg-ey-yellow-600;
+  }
+
+  .btn-secondary {
+    @apply btn bg-ey-ink text-white hover:bg-ey-black;
+  }
+
+  .btn-ghost {
+    @apply btn border border-ey-gray-200 bg-white text-ey-gray hover:border-ey-ink hover:text-ey-ink;
+  }
+
+  .input {
+    @apply w-full rounded border border-ey-gray-200 bg-white px-3 py-2 text-sm text-ey-ink outline-none transition-colors placeholder:text-ey-gray focus:border-ey-ink focus:ring-2 focus:ring-ey-yellow/70;
+  }
+
+  .label {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wider text-ey-gray;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f6f6fa;
+}
+::-webkit-scrollbar-thumb {
+  background: #c4c4cd;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #747480;
+}
