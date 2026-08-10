@@ -25,6 +25,14 @@ export function initials(name: string): string {
 
 export const SKILLSET_COLORS: Record<string, string> = {
   "Data Engineering": "#2E2E38",
+  "Data Architecture": "#1A1A24",
+  "Business Intelligence & Analytics": "#747480",
+  "Artificial Intelligence (AI) & Machine Learning": "#FFE600",
+  "Data Governance & Quality": "#C4C4CD",
+  "Data Security & Privacy": "#9B9BA5",
+  "Data Strategy & Management": "#E1CB00",
+  "Cloud Data Platforms & Operations": "#5C5C66",
+  // Legacy labels from the old generator workbook
   "AI / GenAI": "#FFE600",
   MLOps: "#747480",
   "Data Governance": "#C4C4CD",
@@ -39,6 +47,7 @@ export const CHART_SERIES = [
   "#1A1A24",
   "#E1CB00",
   "#9B9BA5",
+  "#5C5C66",
 ];
 
 export function skillsetColor(cat: string): string {

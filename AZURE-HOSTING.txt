@@ -1,0 +1,65 @@
+Azure hosting — services needed
+===============================
+
+Small internal app (~10 users). Cheapest workable tiers.
+Rough total: ~$20–40 / month.
+
+
+SERVICES TO GET
+---------------
+
+1. App Service (Linux, Node 20) — B1 Basic
+   Hosts the website / app
+   ~$13–15 / month
+
+2. Storage Account + Azure Files — Standard
+   Stores the Excel roster file
+   ~$1 / month
+
+3. Azure AI Foundry — pay per token
+   Runs the AI model (any model)
+   ~$2–15 / month depending on usage
+
+4. Microsoft Entra ID — existing EY tenant
+   Company login / access control
+   $0
+
+5. Key Vault — Standard
+   Stores secrets (API keys)
+   ~$0–1 / month
+
+6. Application Insights — pay as you go
+   Logs and monitoring
+   ~$0–5 / month
+
+
+ACCESS CONTROL (NO PRIVATE ENDPOINTS)
+-------------------------------------
+
+We do not need Private Endpoints / VNet for this.
+
+Private Endpoints hide the app from the public internet (EY network only),
+but require Premium App Service and jump cost to ~$100+/month.
+
+Instead: force EY login via Entra ID (App Service Easy Auth).
+- Users must sign in with an EY account
+- Restrict further to a security group of approved users (~10 people)
+- Strangers and other EY staff hit a login wall and are denied
+
+The site still gets a normal URL (https://….azurewebsites.net).
+Access is controlled by who can sign in.
+
+
+WHAT WE ARE NOT BUYING
+----------------------
+
+- Front Door / WAF — not needed at this scale
+- Private Endpoints / Premium networking — covered by forced EY login
+- Cosmos DB / extra database — Excel + simple file storage is enough for now
+
+
+ONE-LINE SUMMARY
+----------------
+
+B1 App Service + Azure Files + AI Foundry + forced EY login.
+About $20–40/month for a small internal team.

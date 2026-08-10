@@ -7,11 +7,6 @@ import {
   LabelList,
   Pie,
   PieChart,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -97,62 +92,6 @@ export function ChartBar({
             />
           </Bar>
         </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-export function ChartRadar({
-  data,
-  color = "#2E2E38",
-  median,
-}: {
-  data: Datum[];
-  color?: string;
-  /** Optional team-median series (0-100). */
-  median?: Datum[];
-}) {
-  const chartData = data.map((d, i) => ({
-    name: d.name,
-    value: d.value,
-    median: median?.[i]?.value,
-  }));
-
-  return (
-    <div className="h-[260px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={chartData} cx="50%" cy="50%" outerRadius="72%">
-          <PolarGrid stroke="#E1E1E6" />
-          <PolarAngleAxis
-            dataKey="name"
-            tick={{ fill: "#2E2E38", fontSize: 11 }}
-          />
-          <PolarRadiusAxis
-            angle={90}
-            domain={[0, 100]}
-            tick={{ fill: "#747480", fontSize: 10 }}
-            axisLine={false}
-          />
-          {median && (
-            <Radar
-              name="Team median"
-              dataKey="median"
-              stroke="#747480"
-              fill="#747480"
-              fillOpacity={0.1}
-              strokeDasharray="4 4"
-            />
-          )}
-          <Radar
-            name="Score"
-            dataKey="value"
-            stroke={color}
-            fill={color}
-            fillOpacity={0.24}
-            strokeWidth={2}
-          />
-          <Tooltip contentStyle={tooltipStyle} />
-        </RadarChart>
       </ResponsiveContainer>
     </div>
   );

@@ -1,9 +1,4 @@
-export type SkillsetCategory =
-  | "Data Engineering"
-  | "AI / GenAI"
-  | "MLOps"
-  | "Data Governance"
-  | string;
+export type SkillsetCategory = string;
 
 export interface WeeklyPoint {
   /** Full column label, e.g. "WC 7 Jul 2026". */
@@ -33,7 +28,16 @@ export interface Consultant {
   weekly: WeeklyPoint[];
   allocationText: string;
   endDate: string | null; // ISO date
+  /** First skill from Primary Skillset (display / primary chip). */
   skillsetCategory: SkillsetCategory;
+  /**
+   * Skills parsed from Primary Skillset (Platform), split on comma,
+   * capped at 10 per person.
+   */
+  skills: string[];
+  /** @deprecated Prefer `skills`; kept as alias of the same list. */
+  skillBuckets: string[];
+  /** Primary Skillset joined back as a comma-separated string (max 10). */
   skillsetTools: string;
   secondarySkill: string;
   previousRoles: string;

@@ -3,31 +3,17 @@ import path from "node:path";
 
 import * as XLSX from "xlsx";
 
+import {
+  REFERENCE_DATE,
+  SKILL_BUCKETS,
+  SKILLSET_CATEGORIES,
+} from "./constants";
+import { cvForPerson, loadResumeMap } from "./resumes";
+import { parsePrimarySkills, topSkills } from "./skills";
 import type { Consultant, WeeklyPoint } from "./types";
 
-/**
- * Reference "current week" the forecast columns start from. The demo dataset's
- * weekly columns begin at WC 7 Jul 2026, so we anchor all availability/roll-off
- * maths to that date for internal consistency.
- */
-export const REFERENCE_DATE = new Date("2026-07-06T00:00:00Z");
-
-export const SKILLSET_CATEGORIES = [
-  "Data Engineering",
-  "AI / GenAI",
-  "MLOps",
-  "Data Governance",
-];
-
-const WEEK_COLUMNS = [
-  "WC 7 Jul 2026",
-  "WC 14 Jul 2026",
-  "WC 22 Jul 2026",
-  "WC 29 Jul 2026",
-  "WC 5 Aug 2026",
-  "WC 12 Aug 2026",
-  "WC 19 Aug 2026",
-];
+export { REFERENCE_DATE, SKILL_BUCKETS, SKILLSET_CATEGORIES };
+export { parsePrimarySkills, topSkills };
 
 function resolveDataPath(): string {
   const configured = process.env.DATA_XLSX_PATH || "../Dummy Data Generated.xlsx";
@@ -40,8 +26,13 @@ function toNumber(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value === "string") {
     const cleaned = value.replace("%", "").trim();
+    if (!cleaned) return 0;
     const n = parseFloat(cleaned);
-    if (!Number.isNaN(n)) return cleaned.includes("%") ? n / 100 : n;
+    if (!Number.isNaN(n)) {
+      // "50%" -> 0.5; bare "50" from a percent cell already serialised as 50 stays 50
+      // only when explicitly marked with %. Excel fractions arrive as numbers.
+      return cleaned.includes("%") ? n / 100 : n;
+    }
   }
   return 0;
 }
@@ -49,8 +40,9 @@ function toNumber(value: unknown): number {
 function toISO(value: unknown): string | null {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === "number") {
-    // Excel serial date fallback.
-    const d = XLSX.SSF ? new Date(Math.round((value - 25569) * 86400 * 1000)) : null;
+    const d = XLSX.SSF
+      ? new Date(Math.round((value - 25569) * 86400 * 1000))
+      : null;
     return d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null;
   }
   if (typeof value === "string" && value.trim()) {
@@ -61,18 +53,22 @@ function toISO(value: unknown): string | null {
 }
 
 function shortWeekLabel(col: string): string {
-  // "WC 7 Jul 2026" -> "7 Jul"
-  const m = col.replace(/^WC\s+/, "").match(/^(\d+\s+\w+)/);
+  const m = col.replace(/^WC\s+/i, "").match(/^(\d+\s+\w+)/);
   return m ? m[1] : col;
 }
 
-function parseSkillset(raw: string): { category: string; tools: string } {
-  const text = (raw || "").trim();
-  const idx = text.indexOf(" (");
-  if (idx === -1) return { category: text, tools: "" };
-  const category = text.slice(0, idx).trim();
-  const tools = text.slice(idx + 2).replace(/\)\s*$/, "").trim();
-  return { category, tools };
+function discoverWeekColumns(headers: string[]): string[] {
+  return headers.filter((h) => /^WC\s+/i.test(h));
+}
+
+function isYes(value: unknown): boolean {
+  if (value == null) return false;
+  const s = String(value).trim().toLowerCase();
+  return s === "yes" || s === "y" || s === "true" || s === "1";
+}
+
+function bucketsFromRow(row: Record<string, unknown>): string[] {
+  return SKILL_BUCKETS.filter((b) => isYes(row[b]));
 }
 
 function slugify(name: string, index: number): string {
@@ -85,24 +81,42 @@ function slugify(name: string, index: number): string {
 
 function splitRank(rankAndGrade: string): { rank: string; grade: string } {
   const text = (rankAndGrade || "").trim();
-  const m = text.match(/^(.*?)\s*(\d+)?$/);
+  // "Intern (CS) 1", "Associate 2", "Manager 1"
+  const m = text.match(/^(.*?)(?:\s+(\d+))?$/);
   if (!m) return { rank: text, grade: "" };
   return { rank: (m[1] || text).trim(), grade: m[2] || "" };
 }
 
+function firstPresent(row: Record<string, unknown>, keys: string[]): unknown {
+  for (const k of keys) {
+    if (row[k] != null && String(row[k]).trim() !== "") return row[k];
+  }
+  return null;
+}
+
 interface Cache {
-  mtimeMs: number;
+  xlsxMtimeMs: number;
+  pptxMtimeMs: number;
   consultants: Consultant[];
 }
 let cache: Cache | null = null;
 
-function normalizeRow(row: Record<string, unknown>, index: number): Consultant {
+function normalizeRow(
+  row: Record<string, unknown>,
+  index: number,
+  weekColumns: string[],
+  experienceCV: string,
+): Consultant {
   const name = String(row["Employee name"] ?? "").trim();
   const rankAndGrade = String(row["Rank and Grade"] ?? "").trim();
   const { rank, grade } = splitRank(rankAndGrade);
-  const { category, tools } = parseSkillset(String(row["Primary Skillset (Platform)"] ?? ""));
 
-  const weekly: WeeklyPoint[] = WEEK_COLUMNS.map((col) => {
+  const buckets = bucketsFromRow(row);
+  const skills = parsePrimarySkills(row["Primary Skillset (Platform)"]);
+  const skillsetCategory = skills[0] || buckets[0] || "";
+  const skillsetTools = skills.join(", ");
+
+  const weekly: WeeklyPoint[] = weekColumns.map((col) => {
     const allocation = toNumber(row[col]);
     return {
       week: col,
@@ -114,6 +128,22 @@ function normalizeRow(row: Record<string, unknown>, index: number): Consultant {
 
   const currentAllocation = toNumber(row["Current Week Forecast"]);
 
+  const availabilityNext6m = toNumber(
+    firstPresent(row, [
+      "% Availablity (6mth)", // real workbook spelling
+      "% Availability (6mth)",
+      "% availability for next 6 months", // legacy generator
+    ]),
+  );
+
+  const allocationText = String(
+    firstPresent(row, ["Allocation Remarks", "Allocation"]) ?? "",
+  ).trim();
+
+  const excelCv = String(
+    firstPresent(row, ["Experience Summary (CV)"]) ?? "",
+  ).trim();
+
   const known = new Set([
     "Employee name",
     "Rank and Grade",
@@ -123,12 +153,22 @@ function normalizeRow(row: Record<string, unknown>, index: number): Consultant {
     "6 Weeks Forecast",
     "12 Weeks Forecast",
     "Current Week Forecast",
-    ...WEEK_COLUMNS,
+    ...weekColumns,
     "Allocation",
+    "Allocation Remarks",
+    "Bench/Partial Bench (Profinda)",
+    "% Availablity (1mth)",
+    "% Availablity (2mth)",
+    "% Availablity (3mth)",
+    "% Availablity (6mth)",
+    "% Availability (6mth)",
+    "% Availablity 6mth onwards (Outdated)",
     "% availability for next 6 months",
     "End date",
     "Primary Skillset (Platform)",
     "Secondary Skillset",
+    "Combined Bucket Skillset",
+    ...SKILL_BUCKETS,
     "Previous/Existing Project Roles",
     "Aspiring roles",
     "Experience Summary (CV)",
@@ -141,6 +181,9 @@ function normalizeRow(row: Record<string, unknown>, index: number): Consultant {
       extra[key] = String(row[key]).trim();
     }
   }
+  if (buckets.length) {
+    extra["Skill buckets"] = buckets.join(", ");
+  }
 
   return {
     id: slugify(name, index),
@@ -152,19 +195,23 @@ function normalizeRow(row: Record<string, unknown>, index: number): Consultant {
     nationality: String(row["Nationality"] ?? "").trim(),
     benchCategory: String(row["Bench Category Column"] ?? "").trim(),
     currentAllocation,
-    availableNow: Math.max(0, 1 - currentAllocation),
-    availabilityNext6m: toNumber(row["% availability for next 6 months"]),
+    availableNow: Math.max(0, 1 - Math.min(currentAllocation, 1)),
+    availabilityNext6m,
     forecast6w: toNumber(row["6 Weeks Forecast"]),
     forecast12w: toNumber(row["12 Weeks Forecast"]),
     weekly,
-    allocationText: String(row["Allocation"] ?? "").trim(),
+    allocationText,
     endDate: toISO(row["End date"]),
-    skillsetCategory: category,
-    skillsetTools: tools,
-    secondarySkill: String(row["Secondary Skillset"] ?? "").trim(),
+    skillsetCategory,
+    skills,
+    skillBuckets: skills,
+    skillsetTools,
+    secondarySkill: String(row["Secondary Skillset"] ?? "")
+      .replace(/\r\n/g, "\n")
+      .trim(),
     previousRoles: String(row["Previous/Existing Project Roles"] ?? "").trim(),
     aspiringRoles: String(row["Aspiring roles"] ?? "").trim(),
-    experienceCV: String(row["Experience Summary (CV)"] ?? "").trim(),
+    experienceCV: experienceCV || excelCv,
     currentEngagement: String(row["Current Engagement"] ?? "").trim(),
     em: String(row["EM"] ?? "").trim(),
     extra,
@@ -173,28 +220,53 @@ function normalizeRow(row: Record<string, unknown>, index: number): Consultant {
 
 export function getConsultants(): Consultant[] {
   const filePath = resolveDataPath();
-  let mtimeMs = 0;
+  let xlsxMtimeMs = 0;
   try {
-    mtimeMs = fs.statSync(filePath).mtimeMs;
+    xlsxMtimeMs = fs.statSync(filePath).mtimeMs;
   } catch {
     throw new Error(
       `Could not find the data workbook at "${filePath}". Set DATA_XLSX_PATH in .env.local.`,
     );
   }
 
-  if (cache && cache.mtimeMs === mtimeMs) return cache.consultants;
+  const resumes = loadResumeMap();
+  if (
+    cache &&
+    cache.xlsxMtimeMs === xlsxMtimeMs &&
+    cache.pptxMtimeMs === resumes.mtimeMs
+  ) {
+    return cache.consultants;
+  }
 
   const wb = XLSX.readFile(filePath, { cellDates: true });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const sheetName = wb.SheetNames.includes("Master")
+    ? "Master"
+    : wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  const headerRow =
+    (XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null })[0] as
+      | unknown[]
+      | undefined) || [];
+  const headers = headerRow.map((h) => String(h ?? "").trim()).filter(Boolean);
+  const weeks = discoverWeekColumns(headers);
+
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: null,
   });
 
   const consultants = rows
     .filter((r) => String(r["Employee name"] ?? "").trim())
-    .map((r, i) => normalizeRow(r, i));
+    .map((r, i) => {
+      const name = String(r["Employee name"] ?? "").trim();
+      const cv = cvForPerson(name, i, resumes);
+      return normalizeRow(r, i, weeks, cv);
+    });
 
-  cache = { mtimeMs, consultants };
+  cache = {
+    xlsxMtimeMs,
+    pptxMtimeMs: resumes.mtimeMs,
+    consultants,
+  };
   return consultants;
 }
 

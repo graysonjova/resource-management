@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 
 import { Chip, Panel, PanelTitle, type Accent } from "@/components/ui/kit";
+import { SKILLSET_CATEGORIES } from "@/lib/constants";
 
 interface Person {
   id: string;
@@ -19,7 +20,7 @@ interface Person {
   skillset: string;
 }
 
-const SKILLSETS = ["Data Engineering", "AI / GenAI", "MLOps", "Data Governance"];
+const SKILLSETS = [...SKILLSET_CATEGORIES];
 
 const PRIORITY_COLOR: Record<string, Accent> = {
   High: "danger",

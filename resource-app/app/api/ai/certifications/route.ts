@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const system =
       "You are an L&D strategist for a data & AI consulting firm. " +
       "Given the whole roster's skills, identify the firm's TOP skill gaps relative to " +
-      "a modern data & AI practice (Data Engineering, AI/GenAI, MLOps, Data Governance) and " +
+      "a modern data & AI practice (Data Engineering, AI/ML, Cloud Platforms, Data Governance) and " +
       "recommend a concrete certification/training for each gap. " +
       'Return STRICT JSON: {"summary": string (1-2 sentences), "gaps": [ ' +
       '{"skill": string, "affected": integer (people who would benefit), ' +

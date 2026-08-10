@@ -1,3 +1,4 @@
+import { REFERENCE_DATE } from "./constants";
 import type { Consultant } from "./types";
 
 export interface Filters {
@@ -12,21 +13,42 @@ export interface Filters {
 }
 
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
-const REF = new Date("2026-07-06T00:00:00Z");
 
 function weeksUntil(iso: string | null): number | null {
   if (!iso) return null;
   const d = new Date(iso + "T00:00:00Z");
   if (Number.isNaN(d.getTime())) return null;
-  return Math.round((d.getTime() - REF.getTime()) / MS_PER_WEEK);
+  return Math.round((d.getTime() - REFERENCE_DATE.getTime()) / MS_PER_WEEK);
+}
+
+function rankMatches(consultantRank: string, filterRank: string): boolean {
+  if (consultantRank === filterRank) return true;
+  // "Intern" filter should also match "Intern (CS)"
+  const base = consultantRank.split(/\s*\(/)[0].trim();
+  return base === filterRank;
+}
+
+function skillMatches(c: Consultant, skillset: string): boolean {
+  const wanted = skillset.trim().toLowerCase();
+  if (!wanted) return true;
+  if ((c.skills ?? []).some((s) => s.toLowerCase() === wanted)) return true;
+  if (c.skillsetCategory.toLowerCase() === wanted) return true;
+  // Fallback: substring match inside the raw tools string
+  if (c.skillsetTools.toLowerCase().split(",").some((s) => s.trim() === wanted)) {
+    return true;
+  }
+  return false;
 }
 
 export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
   return list.filter((c) => {
-    if (f.rank && c.rank !== f.rank) return false;
+    if (f.rank && !rankMatches(c.rank, f.rank)) return false;
     if (f.gender && c.gender !== f.gender) return false;
-    if (f.nationality && c.nationality !== f.nationality) return false;
-    if (f.skillset && c.skillsetCategory !== f.skillset) return false;
+    if (f.nationality) {
+      const wanted = f.nationality === "Citizen" ? "Singaporean" : f.nationality;
+      if (c.nationality !== wanted && c.nationality !== f.nationality) return false;
+    }
+    if (f.skillset && !skillMatches(c, f.skillset)) return false;
 
     if (f.availability === "bench" && c.currentAllocation !== 0) return false;
     if (f.availability === "spare" && c.availableNow <= 0) return false;
@@ -44,6 +66,7 @@ export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
       const hay = [
         c.name,
         c.skillsetCategory,
+        ...(c.skills ?? []),
         c.skillsetTools,
         c.secondarySkill,
         c.previousRoles,

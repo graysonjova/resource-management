@@ -8,6 +8,7 @@ import { BookingModal } from "@/components/booking/BookingModal";
 import { CapacityBar, Chip, Panel } from "@/components/ui/kit";
 import { applyFilters, type Filters } from "@/lib/filters";
 import { formatDate, skillsetColor } from "@/lib/format";
+import { topSkills } from "@/lib/skills";
 import type { Consultant } from "@/lib/types";
 
 function uniq(list: string[]): string[] {
@@ -67,7 +68,8 @@ export function ResourcesClient({
       rank: uniq(consultants.map((c) => c.rank)),
       gender: uniq(consultants.map((c) => c.gender)),
       nationality: uniq(consultants.map((c) => c.nationality)),
-      skillset: uniq(consultants.map((c) => c.skillsetCategory)),
+      // Top 10 skills from Primary Skillset (comma-split) across the roster.
+      skillset: topSkills(consultants, 10),
     }),
     [consultants],
   );
@@ -108,7 +110,7 @@ export function ResourcesClient({
             onChange={(v) => set({ rank: v || undefined })}
           />
           <Field
-            label="Skillset"
+            label="Skill"
             value={filters.skillset ?? ""}
             options={options.skillset}
             onChange={(v) => set({ skillset: v || undefined })}
@@ -205,15 +207,25 @@ export function ResourcesClient({
                 </td>
                 <td className="px-4 py-3 text-ey-ink">{c.rankAndGrade}</td>
                 <td className="px-4 py-3">
-                  <span
-                    className="chip text-ey-ink"
-                    style={{
-                      borderColor: chipColorFor(c.skillsetCategory),
-                      backgroundColor: chipColorFor(c.skillsetCategory) + "26",
-                    }}
-                  >
-                    {c.skillsetCategory}
-                  </span>
+                  <div className="flex flex-wrap gap-1" title={c.skillsetTools}>
+                    {(c.skills ?? []).slice(0, 3).map((skill) => (
+                      <span
+                        key={skill}
+                        className="chip text-ey-ink"
+                        style={{
+                          borderColor: chipColorFor(skill),
+                          backgroundColor: chipColorFor(skill) + "26",
+                        }}
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                    {(c.skills?.length ?? 0) > 3 && (
+                      <span className="text-[11px] text-ey-gray">
+                        +{(c.skills?.length ?? 0) - 3}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <Chip color="gray">{c.nationality}</Chip>

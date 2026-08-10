@@ -44,7 +44,7 @@ const RISK_COLOR: Record<string, Accent> = {
 
 const EXAMPLES = [
   "What's our AI/GenAI capacity right now?",
-  "Which citizens with MLOps skills are available?",
+  "Which Singaporeans with AI skills are available?",
   "How many people are on the bench?",
 ];
 

@@ -9,9 +9,11 @@ export default function PeopleInformaticsPage() {
     name: c.name,
     rank: c.rankAndGrade,
     skillset: c.skillsetCategory,
+    skills: c.skills,
     tools: c.skillsetTools,
     secondarySkill: c.secondarySkill,
     previousRoles: c.previousRoles,
+    aspiringRoles: c.aspiringRoles,
     shortCv: c.experienceCV.replace(/\s+/g, " ").trim().slice(0, 700),
     currentEngagement: c.currentEngagement,
   }));

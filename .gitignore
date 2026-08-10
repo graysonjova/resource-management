@@ -4,6 +4,10 @@ api-key.txt
 .env.local
 .env*.local
 
+# folder zipped up for hand-off; contains a live key
+ey-demo-handoff/
+ey-demo-handoff.zip
+
 # dependencies & build output
 node_modules/
 .next/

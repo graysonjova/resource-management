@@ -151,14 +151,23 @@ export function ProfileClient({
         <Panel>
           <PanelTitle>Skills</PanelTitle>
           <Row
-            label="Primary"
+            label="Primary skillset"
             value={
               <span className="font-semibold text-ey-black">
-                {consultant.skillsetCategory}
+                {(consultant.skills ?? []).join(", ") || consultant.skillsetTools}
               </span>
             }
           />
-          <p className="mb-2 text-xs text-ey-gray">{consultant.skillsetTools}</p>
+          <div className="mb-2 mt-1 flex flex-wrap gap-1.5">
+            {(consultant.skills ?? []).map((skill) => (
+              <span
+                key={skill}
+                className="rounded-sm border border-ey-gray/30 bg-ey-yellow/20 px-1.5 py-0.5 text-[11px] text-ey-ink"
+              >
+                {skill}
+              </span>
+            ))}
+          </div>
           <Row label="Secondary" value={consultant.secondarySkill} />
           <div className="mt-2 flex items-center gap-2 text-sm text-ey-ink">
             <Briefcase size={14} className="text-ey-gray" />

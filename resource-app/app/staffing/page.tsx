@@ -7,7 +7,9 @@ import { useState } from "react";
 import { Chip, Panel, PanelTitle } from "@/components/ui/kit";
 import { formatDate } from "@/lib/format";
 
-const SKILLSETS = ["Data Engineering", "AI / GenAI", "MLOps", "Data Governance"];
+import { SKILLSET_CATEGORIES } from "@/lib/constants";
+
+const SKILLSETS = [...SKILLSET_CATEGORIES];
 
 const EXAMPLES = [
   "A team of 2 seniors and 3 associates for an LLM-RAG platform",

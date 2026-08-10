@@ -12,10 +12,11 @@ import { useMemo } from "react";
 
 import { ChartBar, ChartDonut, type Datum } from "@/components/charts/ChartKit";
 import { Panel, PanelTitle, StatCard } from "@/components/ui/kit";
-import { CHART_SERIES, SKILLSET_COLORS } from "@/lib/format";
+import { REFERENCE_DATE as REF } from "@/lib/constants";
+import { CHART_SERIES } from "@/lib/format";
+import { topSkills } from "@/lib/skills";
 import type { Consultant } from "@/lib/types";
 
-const REF = new Date("2026-07-06T00:00:00Z");
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 function weeksUntil(iso: string | null): number | null {
@@ -84,14 +85,16 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     [consultants],
   );
 
-  const bySkillset = useMemo(
-    () =>
-      countBy(consultants, (c) => c.skillsetCategory).map((d) => ({
-        ...d,
-        color: SKILLSET_COLORS[d.name] ?? "#2E2E38",
-      })),
-    [consultants],
-  );
+  const bySkillset = useMemo(() => {
+    const top = topSkills(consultants, 10);
+    return top.map((name, i) => ({
+      name,
+      value: consultants.filter((c) =>
+        (c.skills ?? []).some((s) => s.toLowerCase() === name.toLowerCase()),
+      ).length,
+      color: CHART_SERIES[i % CHART_SERIES.length],
+    }));
+  }, [consultants]);
 
   const byStatus = useMemo(() => {
     const buckets = {
@@ -199,7 +202,7 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
         </Panel>
 
         <Panel hover>
-          <PanelTitle>Resources by Skillset</PanelTitle>
+          <PanelTitle>Top 10 skills (Primary Skillset)</PanelTitle>
           <ChartBar data={bySkillset} onSelect={(name) => go({ skillset: name })} />
         </Panel>
 

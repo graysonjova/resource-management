@@ -21,17 +21,18 @@ export async function POST(req: Request) {
   const system =
     "You translate a natural-language staffing query into a JSON filter object for a " +
     "consulting resource roster. Allowed keys and values:\n" +
-    '- rank: one of "Intern","Associate","Senior","Manager"\n' +
+    '- rank: one of "Intern","Associate","Senior","Manager" (Intern also matches Intern (CS))\n' +
     '- gender: "Male" or "Female"\n' +
-    '- nationality: "Citizen","PR","Long-term Pass"\n' +
-    '- skillset: "Data Engineering","AI / GenAI","MLOps","Data Governance"\n' +
+    '- nationality: "Singaporean","PR","Long-term Pass" (also accept "Citizen" as Singaporean)\n' +
+    "- skillset: a single tool/skill from Primary Skillset (comma-separated in the roster), " +
+    'e.g. "Python","SQL","Spark","LangChain","Kubernetes","Power BI","Collibra"\n' +
     '- availability: "all","bench","spare","within"\n' +
     "- withinWeeks: integer (only with availability=within)\n" +
     "- minFreePct: integer 0-100\n" +
     "- q: free-text keyword for skills/tech/projects\n" +
     'Map phrases like "available now"/"free" -> availability:"spare"; ' +
-    '"on the bench" -> availability:"bench"; "Singaporean"/"local" -> nationality:"Citizen"; ' +
-    '"AI"/"GenAI"/"LLM" -> skillset:"AI / GenAI". ' +
+    '"on the bench" -> availability:"bench"; "Singaporean"/"local"/"Citizen" -> nationality:"Singaporean"; ' +
+    '"python people" -> skillset:"Python"; "spark" -> skillset:"Spark". ' +
     "Return STRICT JSON with ONLY the keys that apply. No commentary.";
 
   let content = "";
