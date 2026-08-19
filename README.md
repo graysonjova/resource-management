@@ -13,10 +13,8 @@ AI features run against DeepSeek via OpenRouter.
 | --- | --- |
 | Dashboard | Bench and availability overview. Every chart segment is clickable and drills through to a filtered roster. |
 | Resources | Filterable roster (rank, skillset, nationality, gender, availability, free capacity, free-text search) plus per-consultant profiles with weekly allocation forecast and AI CV tagging. |
-| People Informatics | Functional and technical skill radars against a team median, secondary skills, engagement history and short CV. Skill scores are placeholder demo data; CVs and roster fields come from the workbook. |
+| People Informatics | Skills, engagement, and short CV from the roster workbook and resume deck. |
 | AI Recommender | Describe an engagement, get a team designed and matched to real people on the bench, with fit scores, per-pick reasoning and a client-facing proposal. |
-| AI Features | The remaining AI tools: natural-language roster search, certification recommendations, promotion readiness, firm-wide skill gaps, chat with your roster, and roll-off redeployment planning. |
-| Bookings | Advance reservations placed against consultants, with conflict detection. |
 
 ## Stack
 
@@ -26,8 +24,7 @@ AI features run against DeepSeek via OpenRouter.
 - OpenRouter (DeepSeek) for all AI endpoints
 
 There is no database. Roster data comes from the Excel workbook and is cached in
-memory until the file's modified time changes; bookings persist to
-`resource-app/data/bookings.json`.
+memory until the file's modified time changes.
 
 ## Prerequisites
 
@@ -97,10 +94,8 @@ browser.
 | `POST /api/ai/search` | Turn plain English into roster filters |
 | `POST /api/ai/ask` | Answer questions about capacity, skills and availability |
 | `POST /api/ai/certifications` | Certification recommendations per person or firm-wide |
-| `POST /api/ai/career` | Promotion readiness against the next rank |
 | `POST /api/ai/redeploy` | Redeployment suggestions for people rolling off |
 | `POST /api/ai/autotag` | Extract structured skills, tools and industries from a CV |
-| `GET`/`POST`/`DELETE` `/api/bookings` | Read, create and cancel advance bookings |
 
 Requested rank composition is enforced server-side in the recommender: if a
 brief asks for 2 seniors and 3 associates, the code fills those slots only from
@@ -137,7 +132,7 @@ curl.exe -s -o NUL -w "%{http_code}`n" https://openrouter.ai/api/v1/models
 ```
 
 Anything other than `200` means the AI features won't work on that network.
-Everything else (dashboard, roster, profiles, People Informatics, bookings)
+Everything else (dashboard, roster, profiles, People Informatics)
 reads only from the local workbook and works fully offline.
 
 **"Could not find the data workbook at ..."** The workbook isn't where

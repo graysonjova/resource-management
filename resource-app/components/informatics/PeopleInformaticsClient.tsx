@@ -1,6 +1,6 @@
 "use client";
 
-import { Briefcase, FileText } from "lucide-react";
+import { Award, Briefcase, Download, FileText, GraduationCap, User } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -17,8 +17,64 @@ export interface InformaticsPerson {
   secondarySkill: string;
   previousRoles: string;
   aspiringRoles: string;
-  shortCv: string;
   currentEngagement: string;
+  resumeSlideNumber: number | null;
+  cvSections: {
+    background: string;
+    relevantExperience: string;
+    skills: string;
+    education: string;
+  };
+}
+
+function EducationBlock({ text }: { text: string }) {
+  if (!text.trim()) {
+    return <p className="text-sm text-ey-gray">No education section on this slide.</p>;
+  }
+  const rows = text.split(/\n\n+/).map((block) => {
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+    return { period: lines[0] ?? "", detail: lines.slice(1).join("\n") };
+  });
+  const looksTabular = rows.some((r) => r.detail && /^\d{4}/.test(r.period));
+  if (!looksTabular) {
+    return (
+      <p className="whitespace-pre-line text-sm leading-relaxed text-ey-ink">{text}</p>
+    );
+  }
+  return (
+    <table className="w-full text-left text-sm">
+      <thead>
+        <tr className="border-b border-ey-gray-100 text-xs uppercase tracking-wider text-ey-gray">
+          <th className="py-1.5 pr-3">Period</th>
+          <th className="py-1.5">Discipline / University</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={i} className="border-b border-ey-gray-100 align-top last:border-0">
+            <td className="py-2 pr-3 whitespace-nowrap text-ey-ink">{r.period}</td>
+            <td className="whitespace-pre-line py-2 text-ey-ink">{r.detail || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function CvBlock({ text, empty }: { text: string; empty: string }) {
+  if (!text.trim()) {
+    return <p className="text-sm text-ey-gray">{empty}</p>;
+  }
+  return (
+    <p className="whitespace-pre-line text-sm leading-relaxed text-ey-ink">{text}</p>
+  );
+}
+
+function skillLines(text: string): string[] {
+  return text
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export function PeopleInformaticsClient({
@@ -27,6 +83,7 @@ export function PeopleInformaticsClient({
   people: InformaticsPerson[];
 }) {
   const [selectedId, setSelectedId] = useState(people[0]?.id ?? "");
+  const [downloading, setDownloading] = useState(false);
   const selected = people.find((p) => p.id === selectedId) ?? people[0];
 
   if (!selected) {
@@ -34,11 +91,37 @@ export function PeopleInformaticsClient({
   }
 
   const accent = skillsetColor(selected.skillset);
-  const skills = selected.skills?.length
+  const buckets = selected.skills?.length
     ? selected.skills
     : selected.tools
       ? selected.tools.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
+  const cvSkills = skillLines(selected.cvSections.skills);
+
+  async function downloadSlide() {
+    if (!selected.resumeSlideNumber) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/resumes/${encodeURIComponent(selected.id)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Download failed.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${selected.name} resume.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.alert((e as Error).message);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -47,8 +130,12 @@ export function PeopleInformaticsClient({
           People informatics
         </h1>
         <p className="mt-1 text-sm text-ey-gray">
-          Skills, engagement, and CV drawn from the roster workbook and resume
-          deck.
+          CVs are read from{" "}
+          <span className="font-semibold text-ey-ink">
+            Dummy Data Generated Resumes.pptx
+          </span>
+          . Excel names are matched to slides by name only; unmatched people
+          have no CV.
         </p>
       </div>
 
@@ -113,44 +200,55 @@ export function PeopleInformaticsClient({
                   )}
                 </div>
               </div>
-              <Link
-                href={`/resources/${selected.id}`}
-                className="text-xs text-ey-ink underline hover:text-ey-black"
-              >
-                Open full profile →
-              </Link>
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={downloadSlide}
+                  disabled={!selected.resumeSlideNumber || downloading}
+                >
+                  <Download size={15} />
+                  {downloading ? "Preparing..." : "Download resume slide"}
+                </button>
+                <Link
+                  href={`/resources/${selected.id}`}
+                  className="text-xs text-ey-ink underline hover:text-ey-black"
+                >
+                  Open full profile →
+                </Link>
+              </div>
             </div>
           </Panel>
 
-          <Panel>
-            <PanelTitle>Primary skills</PanelTitle>
-            <div className="flex flex-wrap gap-2">
-              {skills.length ? (
-                skills.map((s) => (
+          {(buckets.length > 0 || selected.secondarySkill) && (
+            <Panel>
+              <PanelTitle>Combined bucket skillset</PanelTitle>
+              <div className="flex flex-wrap gap-2">
+                {buckets.map((s) => (
                   <Chip key={s} color="ink">
                     {s}
                   </Chip>
-                ))
-              ) : (
-                <p className="text-sm text-ey-gray">No primary skills listed.</p>
-              )}
-            </div>
-            {selected.secondarySkill && (
-              <div className="mt-4 border-t border-ey-gray-100 pt-3">
-                <div className="mb-1 text-xs uppercase tracking-wider text-ey-gray">
-                  Secondary
-                </div>
-                <p className="whitespace-pre-line text-sm text-ey-ink">
-                  {selected.secondarySkill}
-                </p>
+                ))}
               </div>
-            )}
-          </Panel>
+              {selected.tools && (
+                <p className="mt-3 text-xs text-ey-gray">
+                  Platform / tools:{" "}
+                  <span className="text-ey-ink">{selected.tools}</span>
+                </p>
+              )}
+              {selected.secondarySkill && (
+                <p className="mt-2 whitespace-pre-line text-xs text-ey-gray">
+                  Secondary:{" "}
+                  <span className="text-ey-ink">{selected.secondarySkill}</span>
+                </p>
+              )}
+            </Panel>
+          )}
 
           <Panel>
             <PanelTitle>
               <span className="inline-flex items-center gap-1.5">
-                <Briefcase size={13} /> Roles & engagement
+                <Briefcase size={13} /> Roles &amp; engagement
               </span>
             </PanelTitle>
             <div className="space-y-2 text-sm text-ey-ink">
@@ -173,16 +271,58 @@ export function PeopleInformaticsClient({
             </div>
           </Panel>
 
-          <Panel>
-            <PanelTitle>
-              <span className="inline-flex items-center gap-1.5">
-                <FileText size={13} /> Short CV
-              </span>
-            </PanelTitle>
-            <p className="whitespace-pre-line text-sm leading-relaxed text-ey-ink">
-              {selected.shortCv || "No CV summary available."}
-            </p>
-          </Panel>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Panel>
+              <PanelTitle>
+                <span className="inline-flex items-center gap-1.5">
+                  <User size={13} /> Background
+                </span>
+              </PanelTitle>
+              <CvBlock
+                text={selected.cvSections.background}
+                empty="No background section on this slide."
+              />
+            </Panel>
+            <Panel>
+              <PanelTitle>
+                <span className="inline-flex items-center gap-1.5">
+                  <Award size={13} /> Skills
+                </span>
+              </PanelTitle>
+              {cvSkills.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {cvSkills.map((s) => (
+                    <Chip key={s} color="yellow">
+                      {s}
+                    </Chip>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-ey-gray">
+                  No skills section on this slide.
+                </p>
+              )}
+            </Panel>
+            <Panel>
+              <PanelTitle>
+                <span className="inline-flex items-center gap-1.5">
+                  <GraduationCap size={13} /> Education
+                </span>
+              </PanelTitle>
+              <EducationBlock text={selected.cvSections.education} />
+            </Panel>
+            <Panel className="md:col-span-2">
+              <PanelTitle>
+                <span className="inline-flex items-center gap-1.5">
+                  <FileText size={13} /> Relevant experience
+                </span>
+              </PanelTitle>
+              <CvBlock
+                text={selected.cvSections.relevantExperience}
+                empty="No relevant experience on this slide."
+              />
+            </Panel>
+          </div>
         </div>
       </div>
     </div>

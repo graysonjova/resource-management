@@ -19,6 +19,8 @@ export interface Datum {
   name: string;
   value: number;
   color?: string;
+  /** Optional short axis label; tooltip / click still use `name`. */
+  label?: string;
 }
 
 const tooltipStyle = {
@@ -34,26 +36,42 @@ export function ChartBar({
   data,
   onSelect,
   vertical,
+  height = 240,
 }: {
   data: Datum[];
   onSelect?: (name: string) => void;
   vertical?: boolean;
+  height?: number;
 }) {
-  // NOTE: Recharts ignores axes wrapped in React fragments, so XAxis/YAxis are
-  // rendered as direct children with props switched by orientation.
+  const chartData = data.map((d) => ({ ...d, axis: d.label ?? d.name }));
+  const yWidth = vertical
+    ? Math.min(
+        168,
+        12 +
+          Math.max(
+            48,
+            ...chartData.map((d) => Math.min(28, (d.axis || "").length) * 7),
+          ),
+      )
+    : 26;
   const catTick = { fill: "#747480", fontSize: 11 };
   return (
-    <div className="h-[240px] w-full">
+    <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
-          data={data}
+          data={chartData}
           layout={vertical ? "vertical" : "horizontal"}
-          margin={{ top: 18, right: vertical ? 34 : 12, bottom: 6, left: vertical ? 6 : 0 }}
+          margin={{
+            top: 18,
+            right: vertical ? 34 : 12,
+            bottom: vertical ? 6 : 8,
+            left: vertical ? 6 : 0,
+          }}
           barCategoryGap={vertical ? "22%" : "18%"}
         >
           <XAxis
             type={vertical ? "number" : "category"}
-            dataKey={vertical ? undefined : "name"}
+            dataKey={vertical ? undefined : "axis"}
             hide={vertical}
             interval={0}
             tick={catTick}
@@ -62,8 +80,8 @@ export function ChartBar({
           />
           <YAxis
             type={vertical ? "category" : "number"}
-            dataKey={vertical ? "name" : undefined}
-            width={vertical ? 130 : 26}
+            dataKey={vertical ? "axis" : undefined}
+            width={vertical ? yWidth : 26}
             hide={!vertical}
             allowDecimals={false}
             tick={catTick}
@@ -73,6 +91,9 @@ export function ChartBar({
           <Tooltip
             contentStyle={tooltipStyle}
             cursor={{ fill: "rgba(46,46,56,0.05)" }}
+            labelFormatter={(_label, payload) =>
+              String(payload?.[0]?.payload?.name ?? _label)
+            }
           />
           <Bar
             dataKey="value"

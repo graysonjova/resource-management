@@ -1,10 +1,9 @@
 "use client";
 
-import { CalendarPlus, RotateCcw, Search } from "lucide-react";
+import { RotateCcw, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { BookingModal } from "@/components/booking/BookingModal";
 import { CapacityBar, Chip, Panel } from "@/components/ui/kit";
 import { applyFilters, type Filters } from "@/lib/filters";
 import { formatDate, skillsetColor } from "@/lib/format";
@@ -61,14 +60,13 @@ export function ResourcesClient({
     availability: "all",
     ...initialFilters,
   });
-  const [booking, setBooking] = useState<Consultant | null>(null);
 
   const options = useMemo(
     () => ({
       rank: uniq(consultants.map((c) => c.rank)),
       gender: uniq(consultants.map((c) => c.gender)),
       nationality: uniq(consultants.map((c) => c.nationality)),
-      // Top 10 skills from Primary Skillset (comma-split) across the roster.
+      // Combined Bucket Skillset values (top 10 by roster frequency).
       skillset: topSkills(consultants, 10),
     }),
     [consultants],
@@ -187,7 +185,6 @@ export function ResourcesClient({
               <th className="px-4 py-3">Engagement</th>
               <th className="px-4 py-3">Free now</th>
               <th className="px-4 py-3">End date</th>
-              <th className="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -243,20 +240,12 @@ export function ResourcesClient({
                 <td className="px-4 py-3 text-ey-gray">
                   {formatDate(c.endDate)}
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    className="btn-primary px-3 py-1.5 text-xs"
-                    onClick={() => setBooking(c)}
-                  >
-                    <CalendarPlus size={14} /> Book
-                  </button>
-                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={7}
                   className="px-4 py-10 text-center text-ey-gray"
                 >
                   No resources match these filters.
@@ -266,13 +255,6 @@ export function ResourcesClient({
           </tbody>
         </table>
       </Panel>
-
-      <BookingModal
-        consultant={booking}
-        open={booking !== null}
-        onClose={() => setBooking(null)}
-        onBooked={() => setTimeout(() => setBooking(null), 1200)}
-      />
     </div>
   );
 }

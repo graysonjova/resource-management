@@ -2,11 +2,8 @@
 
 import {
   GraduationCap,
-  TrendingUp,
   Building2,
   Award,
-  Check,
-  Circle,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -49,13 +46,6 @@ interface OrgGap {
   priority: string;
   rationale: string;
 }
-interface CareerResult {
-  currentRank: string;
-  targetRank: string | null;
-  readinessPct: number;
-  summary: string;
-  checklist: { item: string; done: boolean }[];
-}
 
 function ReadinessBar({ pct }: { pct: number }) {
   const color = pct >= 75 ? "#168736" : pct >= 50 ? "#FFE600" : "#B35C00";
@@ -86,10 +76,6 @@ export function GrowthClient({
   const [certBusy, setCertBusy] = useState(false);
   const [certErr, setCertErr] = useState<string | null>(null);
 
-  const [career, setCareer] = useState<CareerResult | null>(null);
-  const [careerBusy, setCareerBusy] = useState(false);
-  const [careerErr, setCareerErr] = useState<string | null>(null);
-
   const [orgGaps, setOrgGaps] = useState<OrgGap[] | null>(null);
   const [orgSummary, setOrgSummary] = useState("");
   const [orgBusy, setOrgBusy] = useState(false);
@@ -114,26 +100,6 @@ export function GrowthClient({
       setCertErr((e as Error).message);
     } finally {
       setCertBusy(false);
-    }
-  }
-
-  async function runCareer() {
-    setCareerBusy(true);
-    setCareerErr(null);
-    setCareer(null);
-    try {
-      const res = await fetch("/api/ai/career", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ consultantId: personId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Request failed.");
-      setCareer(data);
-    } catch (e) {
-      setCareerErr((e as Error).message);
-    } finally {
-      setCareerBusy(false);
     }
   }
 
@@ -166,7 +132,7 @@ export function GrowthClient({
             Growth &amp; upskilling
           </h1>
           <p className="mt-1 text-sm text-ey-gray">
-            AI-driven certification recommendations and promotion readiness, grounded in each
+            AI-driven certification recommendations, grounded in each
             consultant&apos;s real skills and project history.
           </p>
         </div>
@@ -183,7 +149,6 @@ export function GrowthClient({
               onChange={(e) => {
                 setPersonId(e.target.value);
                 setCert(null);
-                setCareer(null);
               }}
             >
               {people.map((p) => (
@@ -202,14 +167,12 @@ export function GrowthClient({
         </div>
       </Panel>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Certification recommender */}
-        <Panel>
-          <PanelTitle>
-            <span className="inline-flex items-center gap-1.5">
-              <GraduationCap size={13} /> Certification Recommender
-            </span>
-          </PanelTitle>
+      <Panel>
+        <PanelTitle>
+          <span className="inline-flex items-center gap-1.5">
+            <GraduationCap size={13} /> Certification Recommender
+          </span>
+        </PanelTitle>
           <div className="space-y-3">
             <div>
               <label className="label">Target (optional)</label>
@@ -268,48 +231,6 @@ export function GrowthClient({
             )}
           </div>
         </Panel>
-
-        {/* Career-path readiness */}
-        <Panel>
-          <PanelTitle>
-            <span className="inline-flex items-center gap-1.5">
-              <TrendingUp size={13} /> Promotion Readiness
-            </span>
-          </PanelTitle>
-          <button className="btn-secondary" onClick={runCareer} disabled={careerBusy}>
-            <TrendingUp size={15} />
-            {careerBusy ? "Assessing..." : "Assess promotion readiness"}
-          </button>
-
-          {careerErr && <p className="mt-3 text-sm text-state-danger">{careerErr}</p>}
-
-          {career && (
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Chip color="gray">{career.currentRank}</Chip>
-                <span className="text-ey-gray">to</span>
-                <Chip color="yellow">{career.targetRank ?? "Top rank"}</Chip>
-              </div>
-              <ReadinessBar pct={career.readinessPct} />
-              <p className="text-sm text-ey-ink">{career.summary}</p>
-              <ul className="space-y-1.5">
-                {career.checklist.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    {item.done ? (
-                      <Check size={16} className="mt-0.5 shrink-0 text-state-success" />
-                    ) : (
-                      <Circle size={16} className="mt-0.5 shrink-0 text-ey-gray-200" />
-                    )}
-                    <span className={item.done ? "text-ey-gray line-through" : "text-ey-ink"}>
-                      {item.item}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Panel>
-      </div>
 
       {/* Org-wide skill gaps */}
       <Panel>

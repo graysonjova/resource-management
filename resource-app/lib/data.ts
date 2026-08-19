@@ -9,11 +9,11 @@ import {
   SKILLSET_CATEGORIES,
 } from "./constants";
 import { cvForPerson, loadResumeMap } from "./resumes";
-import { parsePrimarySkills, topSkills } from "./skills";
+import { parseCombinedBuckets, parsePrimarySkills, topSkills } from "./skills";
 import type { Consultant, WeeklyPoint } from "./types";
 
 export { REFERENCE_DATE, SKILL_BUCKETS, SKILLSET_CATEGORIES };
-export { parsePrimarySkills, topSkills };
+export { parseCombinedBuckets, parsePrimarySkills, topSkills };
 
 function resolveDataPath(): string {
   const configured = process.env.DATA_XLSX_PATH || "../Dummy Data Generated.xlsx";
@@ -106,15 +106,20 @@ function normalizeRow(
   index: number,
   weekColumns: string[],
   experienceCV: string,
+  cvSections: Consultant["cvSections"],
+  resumeSlideNumber: number | null,
 ): Consultant {
   const name = String(row["Employee name"] ?? "").trim();
   const rankAndGrade = String(row["Rank and Grade"] ?? "").trim();
   const { rank, grade } = splitRank(rankAndGrade);
 
-  const buckets = bucketsFromRow(row);
-  const skills = parsePrimarySkills(row["Primary Skillset (Platform)"]);
-  const skillsetCategory = skills[0] || buckets[0] || "";
-  const skillsetTools = skills.join(", ");
+  const bucketsFromYes = bucketsFromRow(row);
+  const fromCombined = parseCombinedBuckets(row["Combined Bucket Skillset"]);
+  const skills = fromCombined.length ? fromCombined : bucketsFromYes;
+  const skillsetCategory = skills[0] || "";
+  const skillsetTools = parsePrimarySkills(row["Primary Skillset (Platform)"]).join(
+    ", ",
+  );
 
   const weekly: WeeklyPoint[] = weekColumns.map((col) => {
     const allocation = toNumber(row[col]);
@@ -181,8 +186,8 @@ function normalizeRow(
       extra[key] = String(row[key]).trim();
     }
   }
-  if (buckets.length) {
-    extra["Skill buckets"] = buckets.join(", ");
+  if (skills.length) {
+    extra["Skill buckets"] = skills.join(", ");
   }
 
   return {
@@ -212,6 +217,8 @@ function normalizeRow(
     previousRoles: String(row["Previous/Existing Project Roles"] ?? "").trim(),
     aspiringRoles: String(row["Aspiring roles"] ?? "").trim(),
     experienceCV: experienceCV || excelCv,
+    cvSections,
+    resumeSlideNumber,
     currentEngagement: String(row["Current Engagement"] ?? "").trim(),
     em: String(row["EM"] ?? "").trim(),
     extra,
@@ -258,8 +265,15 @@ export function getConsultants(): Consultant[] {
     .filter((r) => String(r["Employee name"] ?? "").trim())
     .map((r, i) => {
       const name = String(r["Employee name"] ?? "").trim();
-      const cv = cvForPerson(name, i, resumes);
-      return normalizeRow(r, i, weeks, cv);
+      const matched = cvForPerson(name, resumes);
+      return normalizeRow(
+        r,
+        i,
+        weeks,
+        matched.cv,
+        matched.sections,
+        matched.slideNumber,
+      );
     });
 
   cache = {

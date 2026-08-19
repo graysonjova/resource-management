@@ -14,8 +14,9 @@ export default function PeopleInformaticsPage() {
     secondarySkill: c.secondarySkill,
     previousRoles: c.previousRoles,
     aspiringRoles: c.aspiringRoles,
-    shortCv: c.experienceCV.replace(/\s+/g, " ").trim().slice(0, 700),
     currentEngagement: c.currentEngagement,
+    resumeSlideNumber: c.resumeSlideNumber,
+    cvSections: c.cvSections,
   }));
 
   return <PeopleInformaticsClient people={people} />;

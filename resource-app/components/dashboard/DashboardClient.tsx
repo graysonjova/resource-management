@@ -35,6 +35,13 @@ function countBy(list: Consultant[], key: (c: Consultant) => string): Datum[] {
   return [...map.entries()].map(([name, value]) => ({ name, value }));
 }
 
+const SKILL_AXIS_MAX = 20;
+
+function truncateAxisLabel(name: string, max = SKILL_AXIS_MAX): string {
+  if (name.length <= max) return name;
+  return `${name.slice(0, max).trimEnd()}…`;
+}
+
 const RANK_ORDER = ["Intern", "Associate", "Senior", "Manager"];
 
 export function DashboardClient({ consultants }: { consultants: Consultant[] }) {
@@ -89,6 +96,7 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     const top = topSkills(consultants, 10);
     return top.map((name, i) => ({
       name,
+      label: truncateAxisLabel(name),
       value: consultants.filter((c) =>
         (c.skills ?? []).some((s) => s.toLowerCase() === name.toLowerCase()),
       ).length,
@@ -202,8 +210,13 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
         </Panel>
 
         <Panel hover>
-          <PanelTitle>Top 10 skills (Primary Skillset)</PanelTitle>
-          <ChartBar data={bySkillset} onSelect={(name) => go({ skillset: name })} />
+          <PanelTitle>Top skill buckets (Combined Bucket Skillset)</PanelTitle>
+          <ChartBar
+            data={bySkillset}
+            vertical
+            height={Math.max(240, bySkillset.length * 36 + 40)}
+            onSelect={(name) => go({ skillset: name })}
+          />
         </Panel>
 
         <Panel hover>

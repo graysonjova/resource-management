@@ -28,42 +28,29 @@ export interface Consultant {
   weekly: WeeklyPoint[];
   allocationText: string;
   endDate: string | null; // ISO date
-  /** First skill from Primary Skillset (display / primary chip). */
+  /** First Combined Bucket Skillset entry (display / primary chip). */
   skillsetCategory: SkillsetCategory;
   /**
-   * Skills parsed from Primary Skillset (Platform), split on comma,
-   * capped at 10 per person.
+   * Practice buckets from Combined Bucket Skillset (comma-split),
+   * falling back to the Yes/blank bucket columns. Capped at 10.
    */
   skills: string[];
-  /** @deprecated Prefer `skills`; kept as alias of the same list. */
+  /** Same as `skills` (Combined Bucket list). */
   skillBuckets: string[];
-  /** Primary Skillset joined back as a comma-separated string (max 10). */
+  /** Tools from Primary Skillset (Platform), comma-separated. */
   skillsetTools: string;
   secondarySkill: string;
   previousRoles: string;
   aspiringRoles: string;
   experienceCV: string;
+  cvSections: {
+    background: string;
+    relevantExperience: string;
+    skills: string;
+    education: string;
+  };
+  resumeSlideNumber: number | null;
   currentEngagement: string;
   em: string;
   extra: Record<string, string>;
-}
-
-export interface Booking {
-  id: string;
-  consultantId: string;
-  consultantName: string;
-  engagement: string;
-  em: string;
-  startDate: string; // ISO
-  endDate: string; // ISO
-  allocationPct: number; // 0..100
-  note?: string;
-  createdAt: string;
-}
-
-export interface ConflictResult {
-  ok: boolean;
-  committedPct: number; // already committed during overlap (0..100)
-  requestedPct: number;
-  message: string;
 }

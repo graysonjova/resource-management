@@ -3,9 +3,7 @@
 import {
   LayoutDashboard,
   Users,
-  CalendarCheck,
   Sparkles,
-  BrainCircuit,
   Radar,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,8 +15,6 @@ const links = [
   { href: "/resources", label: "Resources", icon: Users },
   { href: "/people-informatics", label: "People Informatics", icon: Radar },
   { href: "/staffing", label: "AI Recommender", icon: Sparkles },
-  { href: "/ai-features", label: "AI Features", icon: BrainCircuit },
-  { href: "/bookings", label: "Bookings", icon: CalendarCheck },
 ];
 
 export function Navbar() {

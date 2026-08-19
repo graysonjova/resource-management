@@ -24,15 +24,18 @@ export async function POST(req: Request) {
     '- rank: one of "Intern","Associate","Senior","Manager" (Intern also matches Intern (CS))\n' +
     '- gender: "Male" or "Female"\n' +
     '- nationality: "Singaporean","PR","Long-term Pass" (also accept "Citizen" as Singaporean)\n' +
-    "- skillset: a single tool/skill from Primary Skillset (comma-separated in the roster), " +
-    'e.g. "Python","SQL","Spark","LangChain","Kubernetes","Power BI","Collibra"\n' +
+    "- skillset: a Combined Bucket Skillset value, e.g. " +
+    '"Data Engineering","Data Architecture","Business Intelligence & Analytics",' +
+    '"Artificial Intelligence (AI) & Machine Learning","Data Governance & Quality",' +
+    '"Data Security & Privacy","Data Strategy & Management","Cloud Data Platforms & Operations"\n' +
     '- availability: "all","bench","spare","within"\n' +
     "- withinWeeks: integer (only with availability=within)\n" +
     "- minFreePct: integer 0-100\n" +
     "- q: free-text keyword for skills/tech/projects\n" +
     'Map phrases like "available now"/"free" -> availability:"spare"; ' +
     '"on the bench" -> availability:"bench"; "Singaporean"/"local"/"Citizen" -> nationality:"Singaporean"; ' +
-    '"python people" -> skillset:"Python"; "spark" -> skillset:"Spark". ' +
+    '"AI"/"GenAI"/"ML" -> skillset:"Artificial Intelligence (AI) & Machine Learning"; ' +
+    '"governance" -> "Data Governance & Quality"; "cloud" -> "Cloud Data Platforms & Operations". ' +
     "Return STRICT JSON with ONLY the keys that apply. No commentary.";
 
   let content = "";

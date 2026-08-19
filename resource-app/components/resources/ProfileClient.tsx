@@ -3,8 +3,6 @@
 import {
   ArrowLeft,
   Briefcase,
-  CalendarPlus,
-  Flag,
   Target,
   UserCircle2,
   Tags,
@@ -13,10 +11,9 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ChartBar } from "@/components/charts/ChartKit";
-import { BookingModal } from "@/components/booking/BookingModal";
 import { CapacityBar, Chip, Panel, PanelTitle } from "@/components/ui/kit";
 import { formatDate, skillsetColor } from "@/lib/format";
-import type { Booking, Consultant } from "@/lib/types";
+import type { Consultant } from "@/lib/types";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -29,12 +26,9 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function ProfileClient({
   consultant,
-  bookings,
 }: {
   consultant: Consultant;
-  bookings: Booking[];
 }) {
-  const [open, setOpen] = useState(false);
   const color = skillsetColor(consultant.skillsetCategory);
 
   const [tags, setTags] = useState<{
@@ -104,9 +98,6 @@ export function ProfileClient({
             </div>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => setOpen(true)}>
-          <CalendarPlus size={16} /> Book this resource
-        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -154,7 +145,7 @@ export function ProfileClient({
             label="Primary skillset"
             value={
               <span className="font-semibold text-ey-black">
-                {(consultant.skills ?? []).join(", ") || consultant.skillsetTools}
+                {(consultant.skills ?? []).join(", ") || consultant.skillsetCategory}
               </span>
             }
           />
@@ -168,6 +159,9 @@ export function ProfileClient({
               </span>
             ))}
           </div>
+          {consultant.skillsetTools && (
+            <Row label="Platform / tools" value={consultant.skillsetTools} />
+          )}
           <Row label="Secondary" value={consultant.secondarySkill} />
           <div className="mt-2 flex items-center gap-2 text-sm text-ey-ink">
             <Briefcase size={14} className="text-ey-gray" />
@@ -181,7 +175,7 @@ export function ProfileClient({
       </div>
 
       <Panel>
-        <PanelTitle>Weekly Allocation Forecast (% booked)</PanelTitle>
+        <PanelTitle>Weekly Allocation Forecast (% allocated)</PanelTitle>
         <ChartBar data={weekly} />
       </Panel>
 
@@ -241,41 +235,6 @@ export function ProfileClient({
           </div>
         )}
       </Panel>
-
-      <Panel>
-        <PanelTitle>Advance Bookings</PanelTitle>
-        {bookings.length === 0 ? (
-          <p className="text-sm text-ey-gray">
-            No advance bookings for this resource yet.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {bookings.map((b) => (
-              <li
-                key={b.id}
-                className="flex items-center justify-between rounded border border-ey-gray-100 bg-ey-offwhite p-3 text-sm"
-              >
-                <div>
-                  <div className="font-semibold text-ey-black">{b.engagement}</div>
-                  <div className="text-xs text-ey-gray">
-                    <Flag size={12} className="mr-1 inline" />
-                    {formatDate(b.startDate)} - {formatDate(b.endDate)} · EM{" "}
-                    {b.em}
-                  </div>
-                </div>
-                <Chip color="yellow">{b.allocationPct}%</Chip>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <BookingModal
-        consultant={consultant}
-        open={open}
-        onClose={() => setOpen(false)}
-        onBooked={() => setTimeout(() => setOpen(false), 1200)}
-      />
     </div>
   );
 }
