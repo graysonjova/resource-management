@@ -1,8 +1,14 @@
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is not set`);
+  }
+  return value;
 }
 
 export async function chat(
@@ -15,37 +21,38 @@ export async function chat(
     reasoning?: Record<string, unknown>;
   } = {},
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is not set in .env.local");
+  const endpoint = requiredEnv("AZURE_OPENAI_ENDPOINT").replace(/\/+$/, "");
+  const apiKey = requiredEnv("AZURE_OPENAI_API_KEY");
+  const deployment =
+    process.env.AZURE_OPENAI_DEPLOYMENT?.trim() ||
+    process.env.AZURE_OPENAI_DEPLOYMENT_NAME?.trim();
+  if (!deployment) {
+    throw new Error("AZURE_OPENAI_DEPLOYMENT is not set");
   }
+  const apiVersion =
+    process.env.AZURE_OPENAI_API_VERSION?.trim() || "2024-10-21";
 
-  const res = await fetch(OPENROUTER_URL, {
+  const url = `${endpoint}/openai/deployments/${encodeURIComponent(
+    deployment,
+  )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "api-key": apiKey,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "Resource Management Demo",
     },
     body: JSON.stringify({
-      model,
       messages,
       temperature: opts.temperature ?? 0.2,
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
-      ...(opts.reasoning
-        ? { reasoning: opts.reasoning }
-        : opts.reasoningEffort
-          ? { reasoning: { effort: opts.reasoningEffort } }
-          : {}),
       ...(opts.jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OpenRouter error ${res.status}: ${text.slice(0, 500)}`);
+    throw new Error(`Azure OpenAI error ${res.status}: ${text.slice(0, 500)}`);
   }
 
   const data = await res.json();
@@ -58,7 +65,6 @@ export function extractJson<T = unknown>(text: string): T | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced ? fenced[1] : text;
 
-  // Try direct parse first.
   try {
     return JSON.parse(candidate) as T;
   } catch {

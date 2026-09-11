@@ -1,0 +1,25 @@
+# Use the official Azure Functions Python image
+FROM mcr.microsoft.com/azure-functions/python:4-python3.12
+# Set environment variables
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+   AzureFunctionsJobHost__Logging__Console__IsEnabled=true \
+   PYTHONDONTWRITEBYTECODE=1
+ 
+# Create a non-root user
+RUN useradd -m myuser
+ 
+# Grant ownership of /home to the non-root user
+RUN chown -R myuser:myuser /home
+ 
+# Set working directory
+WORKDIR /home/site/wwwroot
+ 
+# Install dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+ 
+# Copy application code
+COPY . .
+ 
+# Switch to non-root user
+USER myuser

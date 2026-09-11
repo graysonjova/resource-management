@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getConsultantById } from "@/lib/data";
-import { chat, extractJson } from "@/lib/openrouter";
+import { chat, extractJson } from "@/lib/azureOpenAi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

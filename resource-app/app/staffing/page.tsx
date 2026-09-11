@@ -190,7 +190,7 @@ export default function StaffingPage() {
           AI recommender
         </h1>
         <p className="mt-1 text-sm text-ey-gray">
-          Powered by DeepSeek via OpenRouter. Design a team shape, match real people
+          Powered by Azure OpenAI. Design a team shape, match real people
           to it, and generate a client proposal.
         </p>
       </div>

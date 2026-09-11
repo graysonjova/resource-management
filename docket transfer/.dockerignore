@@ -1,0 +1,21 @@
+.git
+.gitignore
+.cursor
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+**/*.tsbuildinfo
+**/__pycache__
+**/*.pyc
+**/Thumbs.db
+**/.DS_Store
+~$*
+*.zip
+
+# Development/reference data not used by the deployed app.
+Dummy Data Generated Masked.seed.xlsx
+Masked resume.seed.pptx
+dockersample
+ey-demo-handoff
+tdhr-main

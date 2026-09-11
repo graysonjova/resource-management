@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAvailableWithin } from "@/lib/availability";
 import { getConsultants } from "@/lib/data";
-import { chat, extractJson } from "@/lib/openrouter";
+import { chat, extractJson } from "@/lib/azureOpenAi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
