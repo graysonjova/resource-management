@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import whitelist from "@/whitelist.json";
 
 export const SESSION_COOKIE = "resource_session";
@@ -7,6 +9,10 @@ const LOCAL_SESSION_SECRET = "resource-management-local-demo-session";
 
 function sessionSecret(): string {
   return process.env.AUTH_SESSION_SECRET || LOCAL_SESSION_SECRET;
+}
+
+export function sessionSecretSource(): "environment" | "fallback" {
+  return process.env.AUTH_SESSION_SECRET ? "environment" : "fallback";
 }
 
 function encodeBase64Url(bytes: Uint8Array): string {
@@ -27,23 +33,10 @@ function decodeBase64Url(value: string): ArrayBuffer {
   ).buffer as ArrayBuffer;
 }
 
-async function signingKey(): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(sessionSecret()),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"],
-  );
-}
-
-async function signature(payload: string): Promise<string> {
-  const signed = await crypto.subtle.sign(
-    "HMAC",
-    await signingKey(),
-    new TextEncoder().encode(payload),
-  );
-  return encodeBase64Url(new Uint8Array(signed));
+function signature(payload: string): string {
+  return createHmac("sha256", sessionSecret())
+    .update(payload)
+    .digest("base64url");
 }
 
 export function authenticate(email: string, password: string): boolean {
@@ -64,38 +57,70 @@ export async function createSession(email: string): Promise<string> {
       }),
     ),
   );
-  return `${payload}.${await signature(payload)}`;
+  return `${payload}.${signature(payload)}`;
+}
+
+export type SessionValidation =
+  | { valid: true; email: string }
+  | {
+      valid: false;
+      reason:
+        | "missing-cookie"
+        | "malformed-cookie"
+        | "invalid-signature"
+        | "invalid-payload"
+        | "email-not-whitelisted"
+        | "expired"
+        | "verification-error";
+    };
+
+export async function validateSession(
+  token: string | undefined,
+): Promise<SessionValidation> {
+  if (!token) return { valid: false, reason: "missing-cookie" };
+  const [payload, suppliedSignature] = token.split(".");
+  if (!payload || !suppliedSignature || token.split(".").length !== 2) {
+    return { valid: false, reason: "malformed-cookie" };
+  }
+
+  try {
+    const expectedSignature = signature(payload);
+    const supplied = Buffer.from(suppliedSignature);
+    const expected = Buffer.from(expectedSignature);
+    const signatureMatches =
+      supplied.length === expected.length &&
+      timingSafeEqual(supplied, expected);
+    if (!signatureMatches) {
+      return { valid: false, reason: "invalid-signature" };
+    }
+
+    const session = JSON.parse(
+      new TextDecoder().decode(decodeBase64Url(payload)),
+    ) as { email?: string; exp?: number };
+    if (
+      typeof session.email !== "string" ||
+      typeof session.exp !== "number"
+    ) {
+      return { valid: false, reason: "invalid-payload" };
+    }
+    const whitelisted = whitelist.users.some(
+      (user) =>
+        user.email.trim().toLowerCase() === session.email!.toLowerCase(),
+    );
+    if (!whitelisted) {
+      return { valid: false, reason: "email-not-whitelisted" };
+    }
+    if (session.exp <= Date.now()) {
+      return { valid: false, reason: "expired" };
+    }
+    return { valid: true, email: session.email };
+  } catch {
+    return { valid: false, reason: "verification-error" };
+  }
 }
 
 export async function verifySession(
   token: string | undefined,
 ): Promise<boolean> {
-  if (!token) return false;
-  const [payload, suppliedSignature] = token.split(".");
-  if (!payload || !suppliedSignature) return false;
-
-  try {
-    const signatureMatches = await crypto.subtle.verify(
-      "HMAC",
-      await signingKey(),
-      decodeBase64Url(suppliedSignature),
-      new TextEncoder().encode(payload),
-    );
-    if (!signatureMatches) return false;
-
-    const session = JSON.parse(
-      new TextDecoder().decode(decodeBase64Url(payload)),
-    ) as { email?: string; exp?: number };
-    return (
-      typeof session.email === "string" &&
-      whitelist.users.some(
-        (user) =>
-          user.email.trim().toLowerCase() === session.email!.toLowerCase(),
-      ) &&
-      typeof session.exp === "number" &&
-      session.exp > Date.now()
-    );
-  } catch {
-    return false;
-  }
+  return (await validateSession(token)).valid;
 }
