@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({ ok: true });
   const forwardedProto = request.headers.get("x-forwarded-proto");
-  response.cookies.set(SESSION_COOKIE, createSession(email), {
+  response.cookies.set(SESSION_COOKIE, await createSession(email), {
     httpOnly: true,
     sameSite: "lax",
     secure: forwardedProto === "https" || request.nextUrl.protocol === "https:",
