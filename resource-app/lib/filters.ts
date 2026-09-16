@@ -56,7 +56,9 @@ export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
       const within = f.withinWeeks ?? 6;
       const w = weeksUntil(c.endDate);
       const soon = w != null && w >= 0 && w <= within;
-      if (!(c.availableNow > 0 || soon)) return false;
+      // Rolling off means still allocated, with an engagement end date
+      // inside the window. People already fully on bench are excluded.
+      if (!soon || c.currentAllocation === 0) return false;
     }
 
     if (f.minFreePct != null && c.availableNow * 100 < f.minFreePct) return false;

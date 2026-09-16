@@ -139,7 +139,7 @@ export function ResourcesClient({
               <option value="spare">Partially on bench</option>
               <option value="bench">On bench (0% allocated)</option>
               <option value="full">Fully allocated</option>
-              <option value="within">Available within 6 weeks</option>
+              <option value="within">Rolling off within 6 weeks</option>
             </select>
           </div>
           <div>
