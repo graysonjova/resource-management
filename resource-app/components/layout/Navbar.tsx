@@ -2,6 +2,7 @@
 
 import {
   LayoutDashboard,
+  LogOut,
   Users,
   Sparkles,
   Radar,
@@ -19,6 +20,7 @@ const links = [
 
 export function Navbar() {
   const pathname = usePathname();
+  if (pathname === "/login") return null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-ey-gray-100 bg-white">
@@ -56,6 +58,16 @@ export function Navbar() {
               </Link>
             );
           })}
+          <form action="/api/auth/logout" method="post">
+            <button
+              type="submit"
+              className="ml-1 flex h-10 items-center gap-2 rounded px-3 text-sm font-semibold text-ey-gray transition-colors hover:bg-ey-offwhite hover:text-ey-ink"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+              <span className="hidden lg:inline">Sign out</span>
+            </button>
+          </form>
         </nav>
       </div>
     </header>

@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { ChartBar } from "@/components/charts/ChartKit";
 import { CapacityBar, Chip, Panel, PanelTitle } from "@/components/ui/kit";
+import { isOnBench } from "@/lib/availability";
 import { formatDate, skillsetColor } from "@/lib/format";
 import type { Consultant } from "@/lib/types";
 
@@ -109,10 +110,10 @@ export function ProfileClient({
           <Row
             label="Current engagement"
             value={
-              consultant.currentAllocation === 0 ? (
+              isOnBench(consultant) ? (
                 <span className="font-semibold text-state-danger">On bench</span>
               ) : (
-                consultant.currentEngagement
+                consultant.currentEngagement || "—"
               )
             }
           />

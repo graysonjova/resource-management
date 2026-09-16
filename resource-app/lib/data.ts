@@ -4,7 +4,7 @@ import path from "node:path";
 import * as XLSX from "xlsx";
 
 import {
-  REFERENCE_DATE,
+  currentDateUtc,
   SKILL_BUCKETS,
   SKILLSET_CATEGORIES,
 } from "./constants";
@@ -12,7 +12,7 @@ import { cvForPerson, loadResumeMap } from "./resumes";
 import { parseCombinedBuckets, parsePrimarySkills, topSkills } from "./skills";
 import type { Consultant, WeeklyPoint } from "./types";
 
-export { REFERENCE_DATE, SKILL_BUCKETS, SKILLSET_CATEGORIES };
+export { currentDateUtc, SKILL_BUCKETS, SKILLSET_CATEGORIES };
 export { parseCombinedBuckets, parsePrimarySkills, topSkills };
 
 function resolveDataPath(): string {
@@ -38,23 +38,24 @@ function toNumber(value: unknown): number {
 }
 
 function toISO(value: unknown): string | null {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const dateParts = (year: number, month: number, day: number) =>
+    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  if (value instanceof Date) {
+    return dateParts(value.getFullYear(), value.getMonth() + 1, value.getDate());
+  }
   if (typeof value === "number") {
-    const d = XLSX.SSF
-      ? new Date(Math.round((value - 25569) * 86400 * 1000))
-      : null;
-    return d && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null;
+    const parsed = XLSX.SSF?.parse_date_code(value);
+    return parsed ? dateParts(parsed.y, parsed.m, parsed.d) : null;
   }
   if (typeof value === "string" && value.trim()) {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+    const text = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+    const d = new Date(text);
+    return Number.isNaN(d.getTime())
+      ? null
+      : dateParts(d.getFullYear(), d.getMonth() + 1, d.getDate());
   }
   return null;
-}
-
-function shortWeekLabel(col: string): string {
-  const m = col.replace(/^WC\s+/i, "").match(/^(\d+\s+\w+)/);
-  return m ? m[1] : col;
 }
 
 function discoverWeekColumns(headers: string[]): string[] {
@@ -94,9 +95,119 @@ function firstPresent(row: Record<string, unknown>, keys: string[]): unknown {
   return null;
 }
 
+interface UtilizationRecord {
+  project: string;
+  engagementManager: string;
+  startDate: string | null;
+  endDate: string | null;
+  utilization: number;
+}
+
+function normalizedName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const copy = new Date(date);
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return copy;
+}
+
+function addUtcMonths(date: Date, months: number): Date {
+  const copy = new Date(date);
+  copy.setUTCMonth(copy.getUTCMonth() + months);
+  return copy;
+}
+
+function activeOn(record: UtilizationRecord, date: Date): boolean {
+  const day = isoDate(date);
+  return (
+    (!record.startDate || record.startDate <= day) &&
+    (!record.endDate || record.endDate >= day)
+  );
+}
+
+function allocationOn(records: UtilizationRecord[], date: Date): number {
+  return records
+    .filter((record) => activeOn(record, date))
+    .reduce((sum, record) => sum + record.utilization, 0);
+}
+
+function utilizationByResource(
+  workbook: XLSX.WorkBook,
+): Map<string, UtilizationRecord[]> {
+  const sheet = workbook.Sheets["Utilization by Engagement"];
+  if (!sheet) {
+    throw new Error(
+      'Workbook is missing the required "Utilization by Engagement" sheet.',
+    );
+  }
+
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    defval: null,
+  });
+  const byResource = new Map<string, UtilizationRecord[]>();
+  let project = "";
+  let engagementManager = "";
+
+  for (const row of rows) {
+    const rowProject = String(row["Project"] ?? "").trim();
+    const rowManager = String(row["Engagement Manager"] ?? "").trim();
+    if (rowProject && !/^unique resources count:/i.test(rowProject)) {
+      project = rowProject;
+    }
+    if (rowManager) engagementManager = rowManager;
+
+    const resource = String(row["Resource"] ?? "").trim();
+    if (!resource) continue;
+    const key = normalizedName(resource);
+    const records = byResource.get(key) ?? [];
+    records.push({
+      project,
+      engagementManager,
+      startDate: toISO(row["Start Date"]),
+      endDate: toISO(row["End Date"]),
+      utilization: Math.max(0, toNumber(row["Utilization %"])),
+    });
+    byResource.set(key, records);
+  }
+
+  return byResource;
+}
+
+function weeklyFromUtilization(
+  records: UtilizationRecord[],
+  today: Date,
+): WeeklyPoint[] {
+  const monday = addUtcDays(today, -((today.getUTCDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = addUtcDays(monday, index * 7);
+    const allocation = allocationOn(records, date);
+    const label = date.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+    return {
+      week: `WC ${label} ${date.getUTCFullYear()}`,
+      label,
+      allocation,
+      available: Math.max(0, 1 - Math.min(allocation, 1)),
+    };
+  });
+}
+
 interface Cache {
   xlsxMtimeMs: number;
   pptxMtimeMs: number;
+  asOfDate: string;
   consultants: Consultant[];
 }
 let cache: Cache | null = null;
@@ -105,6 +216,8 @@ function normalizeRow(
   row: Record<string, unknown>,
   index: number,
   weekColumns: string[],
+  utilizationRecords: UtilizationRecord[],
+  today: Date,
   experienceCV: string,
   cvSections: Consultant["cvSections"],
   resumeSlideNumber: number | null,
@@ -121,29 +234,50 @@ function normalizeRow(
     ", ",
   );
 
-  const weekly: WeeklyPoint[] = weekColumns.map((col) => {
-    const allocation = toNumber(row[col]);
-    return {
-      week: col,
-      label: shortWeekLabel(col),
-      allocation,
-      available: Math.max(0, 1 - allocation),
-    };
-  });
-
-  const currentAllocation = toNumber(row["Current Week Forecast"]);
-
-  const availabilityNext6m = toNumber(
-    firstPresent(row, [
-      "% Availablity (6mth)", // real workbook spelling
-      "% Availability (6mth)",
-      "% availability for next 6 months", // legacy generator
-    ]),
+  const activeRecords = utilizationRecords.filter((record) =>
+    activeOn(record, today),
   );
-
-  const allocationText = String(
-    firstPresent(row, ["Allocation Remarks", "Allocation"]) ?? "",
-  ).trim();
+  const currentAllocation = allocationOn(utilizationRecords, today);
+  const forecast6w = allocationOn(utilizationRecords, addUtcDays(today, 42));
+  const forecast12w = allocationOn(utilizationRecords, addUtcDays(today, 84));
+  const allocationAt6m = allocationOn(
+    utilizationRecords,
+    addUtcMonths(today, 6),
+  );
+  const weekly = weeklyFromUtilization(utilizationRecords, today);
+  const activeProjects = [
+    ...new Set(activeRecords.map((record) => record.project).filter(Boolean)),
+  ];
+  const activeManagers = [
+    ...new Set(
+      activeRecords
+        .map((record) => record.engagementManager)
+        .filter(Boolean),
+    ),
+  ];
+  const endDate = activeRecords.some((record) => !record.endDate)
+    ? null
+    : activeRecords
+        .map((record) => record.endDate)
+        .filter((date): date is string => Boolean(date))
+        .sort()
+        .at(-1) ?? null;
+  const allocationText = activeRecords.length
+    ? activeRecords
+        .map(
+          (record) =>
+            `${record.project || "Engagement"} ${Math.round(
+              record.utilization * 100,
+            )}%`,
+        )
+        .join("\n")
+    : "On bench - no active utilization engagement";
+  const benchCategory =
+    currentAllocation === 0
+      ? "On bench now"
+      : currentAllocation < 1
+        ? "Partially on bench"
+        : "Fully allocated";
 
   const excelCv = String(
     firstPresent(row, ["Experience Summary (CV)"]) ?? "",
@@ -198,15 +332,15 @@ function normalizeRow(
     rankAndGrade,
     gender: String(row["Gender"] ?? "").trim(),
     nationality: String(row["Nationality"] ?? "").trim(),
-    benchCategory: String(row["Bench Category Column"] ?? "").trim(),
+    benchCategory,
     currentAllocation,
     availableNow: Math.max(0, 1 - Math.min(currentAllocation, 1)),
-    availabilityNext6m,
-    forecast6w: toNumber(row["6 Weeks Forecast"]),
-    forecast12w: toNumber(row["12 Weeks Forecast"]),
+    availabilityNext6m: Math.max(0, 1 - Math.min(allocationAt6m, 1)),
+    forecast6w,
+    forecast12w,
     weekly,
     allocationText,
-    endDate: toISO(row["End date"]),
+    endDate,
     skillsetCategory,
     skills,
     skillBuckets: skills,
@@ -219,14 +353,16 @@ function normalizeRow(
     experienceCV: experienceCV || excelCv,
     cvSections,
     resumeSlideNumber,
-    currentEngagement: String(row["Current Engagement"] ?? "").trim(),
-    em: String(row["EM"] ?? "").trim(),
+    currentEngagement: activeProjects.join(", ") || "On bench",
+    em: activeManagers.join(", "),
     extra,
   };
 }
 
 export function getConsultants(): Consultant[] {
   const filePath = resolveDataPath();
+  const today = currentDateUtc();
+  const asOfDate = isoDate(today);
   let xlsxMtimeMs = 0;
   try {
     xlsxMtimeMs = fs.statSync(filePath).mtimeMs;
@@ -240,7 +376,8 @@ export function getConsultants(): Consultant[] {
   if (
     cache &&
     cache.xlsxMtimeMs === xlsxMtimeMs &&
-    cache.pptxMtimeMs === resumes.mtimeMs
+    cache.pptxMtimeMs === resumes.mtimeMs &&
+    cache.asOfDate === asOfDate
   ) {
     return cache.consultants;
   }
@@ -260,16 +397,20 @@ export function getConsultants(): Consultant[] {
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: null,
   });
+  const utilization = utilizationByResource(wb);
 
   const consultants = rows
     .filter((r) => String(r["Employee name"] ?? "").trim())
     .map((r, i) => {
       const name = String(r["Employee name"] ?? "").trim();
       const matched = cvForPerson(name, resumes);
+      const utilizationRecords = utilization.get(normalizedName(name)) ?? [];
       return normalizeRow(
         r,
         i,
         weeks,
+        utilizationRecords,
+        today,
         matched.cv,
         matched.sections,
         matched.slideNumber,
@@ -279,6 +420,7 @@ export function getConsultants(): Consultant[] {
   cache = {
     xlsxMtimeMs,
     pptxMtimeMs: resumes.mtimeMs,
+    asOfDate,
     consultants,
   };
   return consultants;

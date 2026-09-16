@@ -12,19 +12,15 @@ import { useMemo } from "react";
 
 import { ChartBar, ChartDonut, type Datum } from "@/components/charts/ChartKit";
 import { Panel, PanelTitle, StatCard } from "@/components/ui/kit";
-import { REFERENCE_DATE as REF } from "@/lib/constants";
+import {
+  isOnBench,
+  isPartiallyOnBench,
+  isSeniorManager,
+  weeksUntil,
+} from "@/lib/availability";
 import { CHART_SERIES } from "@/lib/format";
 import { topSkills } from "@/lib/skills";
 import type { Consultant } from "@/lib/types";
-
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
-
-function weeksUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  const d = new Date(iso + "T00:00:00Z");
-  if (Number.isNaN(d.getTime())) return null;
-  return Math.round((d.getTime() - REF.getTime()) / MS_PER_WEEK);
-}
 
 function countBy(list: Consultant[], key: (c: Consultant) => string): Datum[] {
   const map = new Map<string, number>();
@@ -53,17 +49,24 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
 
   const stats = useMemo(() => {
     const total = consultants.length;
-    const onBench = consultants.filter((c) => c.currentAllocation === 0).length;
-    const spare = consultants.filter((c) => c.availableNow > 0).length;
+    const onBench = consultants.filter(isOnBench).length;
+    const spare = consultants.filter(isPartiallyOnBench).length;
     const rollingOff = consultants.filter((c) => {
       const w = weeksUntil(c.endDate);
       return w != null && w >= 0 && w <= 6;
     }).length;
+    const utilisationPopulation = consultants.filter(
+      (c) => !isSeniorManager(c),
+    );
     const avgUtil =
-      total === 0
+      utilisationPopulation.length === 0
         ? 0
         : Math.round(
-            (consultants.reduce((s, c) => s + c.currentAllocation, 0) / total) *
+            (utilisationPopulation.reduce(
+              (sum, consultant) => sum + consultant.currentAllocation,
+              0,
+            ) /
+              utilisationPopulation.length) *
               100,
           );
     return { total, onBench, spare, rollingOff, avgUtil };
@@ -107,14 +110,19 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
   const byStatus = useMemo(() => {
     const buckets = {
       "On bench": 0,
-      "Partially available": 0,
+      "Partially on bench": 0,
       "Rolling off <=6w": 0,
       "Fully allocated": 0,
     };
     for (const c of consultants) {
-      if (c.currentAllocation === 0) buckets["On bench"]++;
-      else if (c.availableNow > 0) buckets["Partially available"]++;
-      else {
+      if (isOnBench(c)) buckets["On bench"]++;
+      else if (isPartiallyOnBench(c)) buckets["Partially on bench"]++;
+      else if (
+        isSeniorManager(c) &&
+        (c.currentAllocation === 0 || c.availableNow > 0)
+      ) {
+        continue;
+      } else {
         const w = weeksUntil(c.endDate);
         if (w != null && w >= 0 && w <= 6) buckets["Rolling off <=6w"]++;
         else buckets["Fully allocated"]++;
@@ -122,7 +130,7 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     }
     const colors: Record<string, string> = {
       "On bench": "#B8202E",
-      "Partially available": "#FFE600",
+      "Partially on bench": "#FFE600",
       "Rolling off <=6w": "#B35C00",
       "Fully allocated": "#2E2E38",
     };
@@ -183,11 +191,11 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
           sub="0% allocated"
         />
         <StatCard
-          label="Spare Capacity"
+          label="Partially on Bench"
           value={stats.spare}
           accent="success"
           icon={<Zap size={18} />}
-          sub="have free hours this week"
+          sub="partially allocated this week"
         />
         <StatCard
           label="Rolling Off <=6w"
@@ -196,7 +204,7 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
           icon={<Clock size={18} />}
         />
         <StatCard
-          label="Avg Utilization"
+          label="Utilisation Rate"
           value={`${stats.avgUtil}%`}
           accent="yellow"
           icon={<Gauge size={18} />}
@@ -239,9 +247,12 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
             vertical
             onSelect={(name) => {
               if (name === "On bench") go({ availability: "bench" });
-              else if (name === "Partially available") go({ availability: "spare" });
+              else if (name === "Partially on bench")
+                go({ availability: "spare" });
               else if (name.startsWith("Rolling"))
                 go({ availability: "within", withinWeeks: "6" });
+              else if (name === "Fully allocated")
+                go({ availability: "full" });
             }}
           />
         </Panel>

@@ -1,8 +1,10 @@
-/**
- * Reference "current week" for availability / roll-off maths. Aligned to the
- * first weekly column in Dummy Data Generated.xlsx (WC 14 Jul 2026).
- */
-export const REFERENCE_DATE = new Date("2026-07-13T00:00:00Z");
+/** Today's date at UTC midnight, used for live availability calculations. */
+export function currentDateUtc(): Date {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+}
 
 /** Skill bucket columns in the Master sheet (Yes / blank). */
 export const SKILL_BUCKETS = [

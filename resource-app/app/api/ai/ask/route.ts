@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { compactConsultant } from "@/lib/ai";
+import { isOnBench, isPartiallyOnBench } from "@/lib/availability";
 import { getConsultants } from "@/lib/data";
 import { chat, extractJson } from "@/lib/azureOpenAi";
 
@@ -32,8 +33,8 @@ export async function POST(req: Request) {
     byRank: tally(all.map((c) => c.rankAndGrade)),
     bySkillset: tally(all.map((c) => c.skillsetCategory)),
     byNationality: tally(all.map((c) => c.nationality)),
-    onBench: all.filter((c) => c.currentAllocation === 0).length,
-    partlyFreeNow: all.filter((c) => c.availableNow > 0 && c.availableNow < 1).length,
+    onBench: all.filter(isOnBench).length,
+    partlyFreeNow: all.filter(isPartiallyOnBench).length,
   };
   const roster = all.map(compactConsultant);
 

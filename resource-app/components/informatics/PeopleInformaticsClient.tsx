@@ -1,6 +1,14 @@
 "use client";
 
-import { Award, Briefcase, Download, FileText, GraduationCap, User } from "lucide-react";
+import {
+  Award,
+  Briefcase,
+  Download,
+  FileText,
+  GraduationCap,
+  Search,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -11,7 +19,6 @@ export interface InformaticsPerson {
   id: string;
   name: string;
   rank: string;
-  skillset: string;
   skills: string[];
   tools: string;
   secondarySkill: string;
@@ -83,6 +90,7 @@ export function PeopleInformaticsClient({
   people: InformaticsPerson[];
 }) {
   const [selectedId, setSelectedId] = useState(people[0]?.id ?? "");
+  const [search, setSearch] = useState("");
   const [downloading, setDownloading] = useState(false);
   const selected = people.find((p) => p.id === selectedId) ?? people[0];
 
@@ -90,13 +98,23 @@ export function PeopleInformaticsClient({
     return <p className="text-sm text-ey-gray">No consultants available.</p>;
   }
 
-  const accent = skillsetColor(selected.skillset);
-  const buckets = selected.skills?.length
-    ? selected.skills
-    : selected.tools
-      ? selected.tools.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
+  const buckets = selected.skills ?? [];
   const cvSkills = skillLines(selected.cvSections.skills);
+  const query = search.trim().toLowerCase();
+  const filteredPeople = query
+    ? people.filter((person) =>
+        [
+          person.name,
+          person.rank,
+          person.previousRoles,
+          ...person.skills,
+          person.tools,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+      )
+    : people;
 
   async function downloadSlide() {
     if (!selected.resumeSlideNumber) return;
@@ -134,16 +152,30 @@ export function PeopleInformaticsClient({
           <span className="font-semibold text-ey-ink">
             Dummy Data Generated Resumes.pptx
           </span>
-          . Excel names are matched to slides by name only; unmatched people
-          have no CV.
+          . Excel and slide names are matched by normalized name-word overlap
+          (75% minimum); unmatched people have no CV.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <Panel className="lg:col-span-4 xl:col-span-3">
           <PanelTitle>Roster</PanelTitle>
+          <div className="relative mb-3">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ey-gray"
+            />
+            <input
+              className="input pl-9"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search people, roles or skills"
+              aria-label="Search People Informatics roster"
+            />
+          </div>
           <ul className="max-h-[70vh] space-y-1 overflow-y-auto pr-1">
-            {people.map((p) => {
+            {filteredPeople.map((p) => {
               const active = p.id === selected.id;
               return (
                 <li key={p.id}>
@@ -168,13 +200,18 @@ export function PeopleInformaticsClient({
                     <div className="mt-0.5 flex flex-wrap gap-1.5">
                       <span className="text-[11px] text-ey-gray">{p.rank}</span>
                       <span className="text-[11px] text-ey-gray">
-                        {p.skillset}
+                        {p.previousRoles || "No previous role listed"}
                       </span>
                     </div>
                   </button>
                 </li>
               );
             })}
+            {filteredPeople.length === 0 && (
+              <li className="px-3 py-8 text-center text-sm text-ey-gray">
+                No people match “{search.trim()}”.
+              </li>
+            )}
           </ul>
         </Panel>
 
@@ -187,17 +224,18 @@ export function PeopleInformaticsClient({
                 </h2>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <Chip color="gray">{selected.rank}</Chip>
-                  {selected.skillset && (
+                  {buckets.map((bucket) => (
                     <span
+                      key={bucket}
                       className="chip text-ey-ink"
                       style={{
-                        borderColor: accent,
-                        backgroundColor: accent + "26",
+                        borderColor: skillsetColor(bucket),
+                        backgroundColor: skillsetColor(bucket) + "26",
                       }}
                     >
-                      {selected.skillset}
+                      {bucket}
                     </span>
-                  )}
+                  ))}
                 </div>
               </div>
               <div className="flex flex-col items-stretch gap-2 sm:items-end">

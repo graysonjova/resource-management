@@ -21,7 +21,10 @@ export async function chat(
     reasoning?: Record<string, unknown>;
   } = {},
 ): Promise<string> {
-  const endpoint = requiredEnv("AZURE_OPENAI_ENDPOINT").replace(/\/+$/, "");
+  const endpoint = requiredEnv("AZURE_OPENAI_ENDPOINT")
+    .replace(/\/+$/, "")
+    .replace(/\/openai\/v1$/i, "")
+    .replace(/\/openai$/i, "");
   const apiKey = requiredEnv("AZURE_OPENAI_API_KEY");
   const deployment =
     process.env.AZURE_OPENAI_DEPLOYMENT?.trim() ||
@@ -29,20 +32,20 @@ export async function chat(
   if (!deployment) {
     throw new Error("AZURE_OPENAI_DEPLOYMENT is not set");
   }
-  const apiVersion =
-    process.env.AZURE_OPENAI_API_VERSION?.trim() || "2024-10-21";
 
-  const url = `${endpoint}/openai/deployments/${encodeURIComponent(
-    deployment,
-  )}/chat/completions?api-version=${encodeURIComponent(apiVersion)}`;
+  // Foundry / Azure OpenAI v1 API. Works with both
+  // https://xxx.openai.azure.com and https://xxx.services.ai.azure.com
+  const url = `${endpoint}/openai/v1/chat/completions`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "api-key": apiKey,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      model: deployment,
       messages,
       temperature: opts.temperature ?? 0.2,
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),

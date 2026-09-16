@@ -8,7 +8,6 @@ export default function PeopleInformaticsPage() {
     id: c.id,
     name: c.name,
     rank: c.rankAndGrade,
-    skillset: c.skillsetCategory,
     skills: c.skills,
     tools: c.skillsetTools,
     secondarySkill: c.secondarySkill,

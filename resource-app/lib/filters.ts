@@ -1,4 +1,8 @@
-import { REFERENCE_DATE } from "./constants";
+import {
+  isOnBench,
+  isPartiallyOnBench,
+  weeksUntil,
+} from "./availability";
 import type { Consultant } from "./types";
 
 export interface Filters {
@@ -6,19 +10,10 @@ export interface Filters {
   gender?: string;
   nationality?: string;
   skillset?: string;
-  availability?: "all" | "bench" | "spare" | "within";
+  availability?: "all" | "bench" | "spare" | "within" | "full";
   withinWeeks?: number;
   minFreePct?: number;
   q?: string;
-}
-
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
-
-function weeksUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  const d = new Date(iso + "T00:00:00Z");
-  if (Number.isNaN(d.getTime())) return null;
-  return Math.round((d.getTime() - REFERENCE_DATE.getTime()) / MS_PER_WEEK);
 }
 
 function rankMatches(consultantRank: string, filterRank: string): boolean {
@@ -50,12 +45,17 @@ export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
     }
     if (f.skillset && !skillMatches(c, f.skillset)) return false;
 
-    if (f.availability === "bench" && c.currentAllocation !== 0) return false;
-    if (f.availability === "spare" && c.availableNow <= 0) return false;
+    if (f.availability === "bench" && !isOnBench(c)) return false;
+    if (f.availability === "spare" && !isPartiallyOnBench(c)) return false;
+    if (f.availability === "full") {
+      const w = weeksUntil(c.endDate);
+      const rollingOffSoon = w != null && w >= 0 && w <= 6;
+      if (c.currentAllocation < 1 || rollingOffSoon) return false;
+    }
     if (f.availability === "within") {
       const within = f.withinWeeks ?? 6;
       const w = weeksUntil(c.endDate);
-      const soon = w != null && w <= within;
+      const soon = w != null && w >= 0 && w <= within;
       if (!(c.availableNow > 0 || soon)) return false;
     }
 

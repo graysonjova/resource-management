@@ -7,9 +7,9 @@ import AdmZip from "adm-zip";
  * Extract per-person CV text and slides from Dummy Data Generated Resumes.pptx.
  *
  * Matching Excel roster names to PPT slides:
- *  1. Exact name (punctuation/case ignored), e.g. "Kopi, Jia Wei" == "Kopi, Jia Wei "
- *  2. First-token match when one side is just a given/family name, e.g. "Pokka" == "Pokka "
- * If neither matches, the person has no CV / slide (no roster-order fallback).
+ *  1. Names are split into distinct, normalized words (order is ignored).
+ *  2. At least 75% of the words in the longer name must overlap.
+ * Ambiguous matches are rejected; there is no roster-order fallback.
  */
 
 const SKIP_LABELS = new Set([
@@ -58,20 +58,23 @@ export function resolvePptxPath(): string | null {
 
 export function normalizeName(name: string): string {
   return name
+    .normalize("NFKD")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+    .match(/[\p{L}\p{N}]+/gu)
+    ?.join(" ")
+    .trim() ?? "";
+}
+
+export function nameMatchScore(excelName: string, pptName: string): number {
+  const a = new Set(normalizeName(excelName).split(" ").filter(Boolean));
+  const b = new Set(normalizeName(pptName).split(" ").filter(Boolean));
+  if (!a.size || !b.size) return 0;
+  const matchingWords = [...a].filter((word) => b.has(word)).length;
+  return matchingWords / Math.max(a.size, b.size);
 }
 
 export function namesMatch(excelName: string, pptName: string): boolean {
-  const a = normalizeName(excelName);
-  const b = normalizeName(pptName);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const a0 = a.split(" ")[0];
-  const b0 = b.split(" ")[0];
-  if (a0 && a0 === b0 && (a === a0 || b === b0)) return true;
-  return false;
+  return nameMatchScore(excelName, pptName) >= 0.75;
 }
 
 function decodeXmlText(raw: string): string {
@@ -376,17 +379,18 @@ export function matchResume(
   const key = normalizeName(excelName);
   if (resumes.byName.has(key)) return resumes.byName.get(key);
 
-  const named = resumes.slides.filter((s) => namesMatch(excelName, s.name));
-  if (named.length === 1) return named[0];
-
-  const first = key.split(" ")[0];
-  const firstHits = resumes.slides.filter((s) => {
-    const n = normalizeName(s.name);
-    return n === first || n.startsWith(first + " ");
-  });
-  if (firstHits.length === 1) return firstHits[0];
-
-  return undefined;
+  const matches = resumes.slides
+    .map((slide) => ({
+      slide,
+      score: nameMatchScore(excelName, slide.name),
+    }))
+    .filter(({ score }) => score >= 0.75)
+    .sort((a, b) => b.score - a.score);
+  if (!matches.length) return undefined;
+  if (matches.length > 1 && matches[0].score === matches[1].score) {
+    return undefined;
+  }
+  return matches[0].slide;
 }
 
 export function cvForPerson(

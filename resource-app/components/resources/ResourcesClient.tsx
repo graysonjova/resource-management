@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { CapacityBar, Chip, Panel } from "@/components/ui/kit";
+import { isOnBench } from "@/lib/availability";
 import { applyFilters, type Filters } from "@/lib/filters";
 import { formatDate, skillsetColor } from "@/lib/format";
 import { topSkills } from "@/lib/skills";
@@ -135,8 +136,9 @@ export function ResourcesClient({
               }
             >
               <option value="all">Any</option>
-              <option value="spare">Has spare capacity now</option>
+              <option value="spare">Partially on bench</option>
               <option value="bench">On bench (0% allocated)</option>
+              <option value="full">Fully allocated</option>
               <option value="within">Available within 6 weeks</option>
             </select>
           </div>
@@ -228,7 +230,7 @@ export function ResourcesClient({
                   <Chip color="gray">{c.nationality}</Chip>
                 </td>
                 <td className="px-4 py-3 text-ey-gray">
-                  {c.currentAllocation === 0 ? (
+                  {isOnBench(c) ? (
                     <span className="font-semibold text-state-danger">On bench</span>
                   ) : (
                     c.currentEngagement
