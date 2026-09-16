@@ -7,8 +7,9 @@ import AdmZip from "adm-zip";
  * Extract per-person CV text and slides from Dummy Data Generated Resumes.pptx.
  *
  * Matching Excel roster names to PPT slides:
- *  1. Names are split into distinct, normalized words (order is ignored).
- *  2. At least 75% of the words in the longer name must overlap.
+ *  1. Exact normalized names and complete shorter-name containment score 100%.
+ *  2. Compact names also match when spaces differ (e.g. Yew Khee / Yewkhee).
+ *  3. Otherwise, at least 75% of the longer name's words must overlap.
  * Ambiguous matches are rejected; there is no roster-order fallback.
  */
 
@@ -69,6 +70,21 @@ export function nameMatchScore(excelName: string, pptName: string): number {
   const a = new Set(normalizeName(excelName).split(" ").filter(Boolean));
   const b = new Set(normalizeName(pptName).split(" ").filter(Boolean));
   if (!a.size || !b.size) return 0;
+
+  const smaller = a.size <= b.size ? a : b;
+  const larger = a.size <= b.size ? b : a;
+  if ([...smaller].every((word) => larger.has(word))) return 1;
+
+  const compactExcel = normalizeName(excelName).replace(/\s+/g, "");
+  const compactPpt = normalizeName(pptName).replace(/\s+/g, "");
+  if (
+    compactExcel.length >= 6 &&
+    compactPpt.length >= 6 &&
+    compactExcel === compactPpt
+  ) {
+    return 1;
+  }
+
   const matchingWords = [...a].filter((word) => b.has(word)).length;
   return matchingWords / Math.max(a.size, b.size);
 }
@@ -87,6 +103,7 @@ function decodeXmlText(raw: string): string {
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
     .replace(/\r/g, "")
     .replace(/\u000b/g, "\n")
+    .replace(/[\u200b-\u200d\ufeff]/gi, "")
     .trim();
 }
 
@@ -126,14 +143,49 @@ function slicePptElement(xml: string, start: number): string | null {
   return xml.slice(start);
 }
 
-function topLevelShapes(slideXml: string): { kind: "group" | "shape" | "table"; xml: string }[] {
+interface ShapeBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface PptShape {
+  kind: "group" | "shape" | "table";
+  xml: string;
+  bounds: ShapeBounds | null;
+}
+
+function xmlNumber(tag: string | undefined, attribute: string): number | null {
+  const match = tag?.match(new RegExp(`\\b${attribute}="(-?\\d+)"`));
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function shapeBounds(xml: string): ShapeBounds | null {
+  const transform =
+    xml.match(/<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/)?.[0] ??
+    xml.match(/<p:xfrm\b[^>]*>[\s\S]*?<\/p:xfrm>/)?.[0];
+  if (!transform) return null;
+  const off = transform.match(/<a:off\b[^>]*>/)?.[0];
+  const ext = transform.match(/<a:ext\b[^>]*>/)?.[0];
+  const x = xmlNumber(off, "x");
+  const y = xmlNumber(off, "y");
+  const width = xmlNumber(ext, "cx");
+  const height = xmlNumber(ext, "cy");
+  if (x == null || y == null || width == null || height == null) return null;
+  return { x, y, width, height };
+}
+
+function topLevelShapes(slideXml: string): PptShape[] {
   const treeOpen = slideXml.search(/<p:spTree[\s>]/);
   if (treeOpen < 0) return [];
   const tree = slicePptElement(slideXml, treeOpen);
   if (!tree) return [];
   const innerStart = tree.indexOf(">") + 1;
   const inner = tree.slice(innerStart, tree.lastIndexOf("</p:spTree>"));
-  const out: { kind: "group" | "shape" | "table"; xml: string }[] = [];
+  const out: PptShape[] = [];
   let i = 0;
   while (i < inner.length) {
     const rest = inner.slice(i);
@@ -152,11 +204,11 @@ function topLevelShapes(slideXml: string): { kind: "group" | "shape" | "table"; 
     const chunk = slicePptElement(inner, abs);
     if (!chunk) break;
     if (hit.kind === "table" && chunk.includes("<a:tbl")) {
-      out.push({ kind: "table", xml: chunk });
+      out.push({ kind: "table", xml: chunk, bounds: shapeBounds(chunk) });
     } else if (hit.kind === "group") {
-      out.push({ kind: "group", xml: chunk });
+      out.push({ kind: "group", xml: chunk, bounds: shapeBounds(chunk) });
     } else {
-      out.push({ kind: "shape", xml: chunk });
+      out.push({ kind: "shape", xml: chunk, bounds: shapeBounds(chunk) });
     }
     i = abs + chunk.length;
   }
@@ -204,6 +256,47 @@ function groupHeading(texts: string[]): keyof CvSections | null {
     if (key) return key;
   }
   return null;
+}
+
+interface SectionMarker {
+  section: Exclude<keyof CvSections, "education">;
+  bounds: ShapeBounds;
+}
+
+function horizontalGap(a: ShapeBounds, b: ShapeBounds): number {
+  const aRight = a.x + a.width;
+  const bRight = b.x + b.width;
+  if (aRight < b.x) return b.x - aRight;
+  if (bRight < a.x) return a.x - bRight;
+  return 0;
+}
+
+function nearestSection(
+  shape: PptShape,
+  markers: SectionMarker[],
+): SectionMarker["section"] | null {
+  if (!shape.bounds || !markers.length) return null;
+
+  const sameColumn = markers.filter(
+    (marker) => horizontalGap(shape.bounds!, marker.bounds) <= 400_000,
+  );
+  const candidates = sameColumn.length ? sameColumn : markers;
+  const ranked = candidates
+    .map((marker) => {
+      const xGap = horizontalGap(shape.bounds!, marker.bounds);
+      const markerTop = marker.bounds.y;
+      const bodyTop = shape.bounds!.y;
+      // Content normally sits below its banner. Strongly penalize a marker
+      // below the body so an earlier heading in the same column wins.
+      const yGap =
+        bodyTop >= markerTop
+          ? bodyTop - markerTop
+          : (markerTop - bodyTop) * 3;
+      return { marker, score: xGap * 10 + yGap };
+    })
+    .sort((a, b) => a.score - b.score);
+
+  return ranked[0]?.marker.section ?? null;
 }
 
 function inferName(cleaned: string[]): string {
@@ -268,8 +361,14 @@ function parseSections(slideXml: string): { name: string; sections: CvSections }
     if (/AI and Data/i.test(t)) return true;
     if (low.startsWith("email")) return true;
     if (/@sg\.ey\.com/i.test(t)) return true;
+    if (/^confidential\b/i.test(t)) return true;
+    if (/^page\s*:?\s*\d+/i.test(t)) return true;
+    if (low === "ey") return true;
     return false;
   };
+
+  const markers: SectionMarker[] = [];
+  const orphans: { shape: PptShape; body: string[] }[] = [];
 
   for (const shape of topLevelShapes(slideXml)) {
     if (shape.kind === "table") {
@@ -282,19 +381,41 @@ function parseSections(slideXml: string): { name: string; sections: CvSections }
       .filter(Boolean);
     const heading = groupHeading(texts);
     const body = texts.filter((t) => !dropMeta(t));
-    if (heading === "skills") {
-      buckets.skills.push(...body);
-    } else if (heading === "background") {
-      buckets.background.push(...body);
-    } else if (heading === "relevantExperience") {
-      buckets.relevantExperience.push(...body);
-    } else if (heading === "education") {
-      // Standalone "Education" label; table is a separate shape.
-      continue;
-    } else if (shape.kind === "group" && body.length) {
-      buckets.relevantExperience.push(...body);
+
+    if (heading && heading !== "education" && shape.bounds) {
+      markers.push({ section: heading, bounds: shape.bounds });
+    }
+    if (heading) {
+      if (heading !== "education" && body.length) {
+        buckets[heading].push(...body);
+      }
+    } else if (body.length) {
+      orphans.push({ shape, body });
     }
   }
+
+  // PowerPoint frequently stores a section banner and its content as separate
+  // sibling shapes. XML order is not visual order, so assign these orphan
+  // shapes using their on-slide coordinates after all markers are collected.
+  orphans
+    .sort((a, b) => {
+      if (!a.shape.bounds) return 1;
+      if (!b.shape.bounds) return -1;
+      return (
+        a.shape.bounds.y - b.shape.bounds.y ||
+        a.shape.bounds.x - b.shape.bounds.x
+      );
+    })
+    .forEach(({ shape, body }) => {
+      const section = nearestSection(shape, markers);
+      if (section) {
+        buckets[section].push(...body);
+      } else if (shape.kind === "group") {
+        // Preserve support for older decks where an unlabelled right-column
+        // group represented Relevant Experience.
+        buckets.relevantExperience.push(...body);
+      }
+    });
 
   for (const k of Object.keys(buckets) as (keyof CvSections)[]) {
     sections[k] = buckets[k].join("\n").trim();
