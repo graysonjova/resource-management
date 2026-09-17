@@ -53,7 +53,7 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     const spare = consultants.filter(isPartiallyOnBench).length;
     const rollingOff = consultants.filter((c) => {
       const w = weeksUntil(c.endDate);
-      return w != null && w >= 0 && w <= 6;
+      return !isSeniorManager(c) && w != null && w >= 0 && w <= 6;
     }).length;
     const utilisationPopulation = consultants.filter(
       (c) => !isSeniorManager(c),
@@ -124,7 +124,13 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
         continue;
       } else {
         const w = weeksUntil(c.endDate);
-        if (w != null && w >= 0 && w <= 6) buckets["Rolling off <=6w"]++;
+        if (
+          !isSeniorManager(c) &&
+          w != null &&
+          w >= 0 &&
+          w <= 6
+        )
+          buckets["Rolling off <=6w"]++;
         else buckets["Fully allocated"]++;
       }
     }
@@ -145,20 +151,17 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     const map = new Map<string, number>();
     for (const c of consultants) {
       if (!c.endDate) continue;
-      const d = new Date(c.endDate + "T00:00:00Z");
-      const key = d.toLocaleDateString("en-GB", {
+      const key = c.endDate.slice(0, 7);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    const sorted = [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+    return sorted.map(([month, value], i) => ({
+      name: new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-GB", {
         month: "short",
         year: "2-digit",
         timeZone: "UTC",
-      });
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    const sorted = [...map.entries()].sort(
-      (a, b) =>
-        new Date("01 " + a[0]).getTime() - new Date("01 " + b[0]).getTime(),
-    );
-    return sorted.map(([name, value], i) => ({
-      name,
+      }),
+      month,
       value,
       color: CHART_SERIES[i % CHART_SERIES.length],
     }));
@@ -233,7 +236,7 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
         </Panel>
 
         <Panel hover>
-          <PanelTitle>By Nationality</PanelTitle>
+          <PanelTitle>By Employment Status</PanelTitle>
           <ChartDonut
             data={byNationality}
             onSelect={(name) => go({ nationality: name })}
@@ -259,7 +262,13 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
 
         <Panel hover>
           <PanelTitle>Engagement Roll-off (by end month)</PanelTitle>
-          <ChartBar data={byRolloff} />
+          <ChartBar
+            data={byRolloff}
+            onSelect={(name) => {
+              const month = byRolloff.find((item) => item.name === name)?.month;
+              if (month) go({ rolloffMonth: month });
+            }}
+          />
         </Panel>
       </div>
     </div>

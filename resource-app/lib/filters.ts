@@ -1,6 +1,7 @@
 import {
   isOnBench,
   isPartiallyOnBench,
+  isSeniorManager,
   weeksUntil,
 } from "./availability";
 import type { Consultant } from "./types";
@@ -12,6 +13,7 @@ export interface Filters {
   skillset?: string;
   availability?: "all" | "bench" | "spare" | "within" | "full";
   withinWeeks?: number;
+  rolloffMonth?: string;
   minFreePct?: number;
   q?: string;
 }
@@ -49,7 +51,8 @@ export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
     if (f.availability === "spare" && !isPartiallyOnBench(c)) return false;
     if (f.availability === "full") {
       const w = weeksUntil(c.endDate);
-      const rollingOffSoon = w != null && w >= 0 && w <= 6;
+      const rollingOffSoon =
+        !isSeniorManager(c) && w != null && w >= 0 && w <= 6;
       if (c.currentAllocation < 1 || rollingOffSoon) return false;
     }
     if (f.availability === "within") {
@@ -57,9 +60,10 @@ export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
       const w = weeksUntil(c.endDate);
       const soon = w != null && w >= 0 && w <= within;
       // Rolling off means still allocated, with an engagement end date
-      // inside the window. People already fully on bench are excluded.
-      if (!soon || c.currentAllocation === 0) return false;
+      // inside the window. Bench resources and Senior Managers are excluded.
+      if (!soon || c.currentAllocation === 0 || isSeniorManager(c)) return false;
     }
+    if (f.rolloffMonth && c.endDate?.slice(0, 7) !== f.rolloffMonth) return false;
 
     if (f.minFreePct != null && c.availableNow * 100 < f.minFreePct) return false;
 
@@ -93,6 +97,7 @@ export function filtersFromParams(sp: URLSearchParams): Filters {
     skillset: sp.get("skillset") || undefined,
     availability: (sp.get("availability") as Filters["availability"]) || "all",
     withinWeeks: num(sp.get("withinWeeks")),
+    rolloffMonth: sp.get("rolloffMonth") || undefined,
     minFreePct: num(sp.get("minFreePct")),
     q: sp.get("q") || undefined,
   };

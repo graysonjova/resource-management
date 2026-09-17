@@ -50,6 +50,14 @@ const chipColorFor = (cat: string) => {
   return c;
 };
 
+function formatMonth(month: string): string {
+  return new Date(`${month}-01T00:00:00Z`).toLocaleDateString("en-GB", {
+    month: "short",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
 export function ResourcesClient({
   consultants,
   initialFilters,
@@ -67,6 +75,11 @@ export function ResourcesClient({
       rank: uniq(consultants.map((c) => c.rank)),
       gender: uniq(consultants.map((c) => c.gender)),
       nationality: uniq(consultants.map((c) => c.nationality)),
+      rolloffMonth: uniq(
+        consultants
+          .map((c) => c.endDate?.slice(0, 7) ?? "")
+          .filter((month) => /^\d{4}-\d{2}$/.test(month)),
+      ),
       // Combined Bucket Skillset values (top 10 by roster frequency).
       skillset: topSkills(consultants, 10),
     }),
@@ -140,6 +153,23 @@ export function ResourcesClient({
               <option value="bench">On bench (0% allocated)</option>
               <option value="full">Fully allocated</option>
               <option value="within">Rolling off within 6 weeks</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Roll-off month</label>
+            <select
+              className="input"
+              value={filters.rolloffMonth ?? ""}
+              onChange={(e) =>
+                set({ rolloffMonth: e.target.value || undefined })
+              }
+            >
+              <option value="">All</option>
+              {options.rolloffMonth.map((month) => (
+                <option key={month} value={month}>
+                  {formatMonth(month)}
+                </option>
+              ))}
             </select>
           </div>
           <div>

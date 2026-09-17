@@ -246,7 +246,7 @@ export function PeopleInformaticsClient({
                   disabled={!selected.resumeSlideNumber || downloading}
                 >
                   <Download size={15} />
-                  {downloading ? "Preparing..." : "Download resume slide"}
+                  {downloading ? "Preparing..." : "Download resume"}
                 </button>
                 <Link
                   href={`/resources/${selected.id}`}

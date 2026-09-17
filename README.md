@@ -2,7 +2,7 @@
 
 A resource-planning and AI staffing tool for a consulting bench, built as a demo
 on EY's brand palette. Roster data is read live from an Excel workbook, and the
-AI features run against DeepSeek via OpenRouter.
+AI features run against a deployed model in Microsoft Foundry.
 
 > All names, engagements and client references in the data are fictional dummy
 > data generated for this demo.
@@ -21,7 +21,7 @@ AI features run against DeepSeek via OpenRouter.
 - Next.js 15 (App Router) with React 18 and TypeScript
 - Tailwind CSS for styling, Recharts for charts, Lucide for icons
 - `xlsx` (SheetJS) to read the roster workbook server-side
-- OpenRouter (DeepSeek) for all AI endpoints
+- Microsoft Foundry / Azure OpenAI-compatible API for all AI endpoints
 
 There is no database. Roster data comes from the Excel workbook and is cached in
 memory until the file's modified time changes.
@@ -51,13 +51,17 @@ node -v
    with a clone and must be recreated:
 
    ```
-   OPENROUTER_API_KEY=sk-or-...
-   OPENROUTER_MODEL=deepseek/deepseek-v4-flash-0731
+   AZURE_OPENAI_ENDPOINT=https://your-resource.services.ai.azure.com
+   AZURE_OPENAI_API_KEY=...
+   AZURE_OPENAI_DEPLOYMENT=gpt-4o
+   AUTH_SESSION_SECRET=replace-with-a-long-random-value
    DATA_XLSX_PATH=../Dummy Data Generated.xlsx
+   DATA_PPTX_PATH=../Dummy Data Generated Resumes.pptx
    ```
 
-   Get a key at <https://openrouter.ai/keys>. Without it the app still runs, but
-   every AI panel will error.
+   Copy the endpoint, key and deployment name from the model deployment in
+   Microsoft Foundry. Without them the app still runs, but every AI panel will
+   error.
 
 3. **Install and start:**
 
@@ -69,17 +73,47 @@ node -v
 
    Then open <http://localhost:3000>.
 
+## Login whitelist
+
+Demo login accounts are stored in `resource-app/whitelist.json`. Edit that file
+to add or remove users. The passwords are intentionally plain text for this
+demo and must not be used as a production authentication design.
+
+This login replaces Azure App Service Authentication. Configure App Service
+Authentication to allow unauthenticated access (or disable it), because the
+application middleware now performs the access check.
+
+## Local production test
+
+```bash
+cd resource-app
+npm install
+npm run build
+npm run start
+```
+
+Then open <http://localhost:3000>. Docker and WSL are not required.
+
+## Azure Container Registry build
+
+Run this from the repository root. ACR builds the Linux container remotely, so
+Docker Desktop and WSL are not required:
+
+```bash
+az acr build --registry YOUR_REGISTRY --image resource-app:stable1 \
+  --file container_images/webapp_container_image/Dockerfile .
+```
+
 Do not copy a `node_modules` folder between machines — it contains compiled
 platform-specific binaries. Delete it and run `npm install` instead.
 
 ## How dates work
 
-The workbook's weekly allocation columns start at week commencing 7 Jul 2026, so
-the app anchors all "now", availability and roll-off maths to a fixed reference
-date of **6 Jul 2026** (`REFERENCE_DATE` in `lib/data.ts`) rather than the real
-current date. This keeps availability consistent with the data instead of
-drifting as real time passes. Change that constant if you re-generate the
-workbook against different dates.
+The app uses the real current UTC date. Allocation, current engagement, forecast
+weeks, end dates and roll-off calculations come from the
+`Utilization by Engagement` sheet. Profile attributes and skills continue to
+come from `Master`. A Master resource with no active utilization row is treated
+as fully on bench.
 
 ## AI endpoints
 
@@ -124,16 +158,11 @@ npm config set cafile "C:\path\to\corp-root-ca.pem"
 $env:NODE_EXTRA_CA_CERTS="C:\path\to\corp-root-ca.pem"
 ```
 
-**AI panels error but the rest of the app works.** Check that `openrouter.ai` is
-reachable — corporate networks often block third-party AI endpoints:
-
-```powershell
-curl.exe -s -o NUL -w "%{http_code}`n" https://openrouter.ai/api/v1/models
-```
-
-Anything other than `200` means the AI features won't work on that network.
-Everything else (dashboard, roster, profiles, People Informatics)
-reads only from the local workbook and works fully offline.
+**AI panels error but the rest of the app works.** Verify the three
+`AZURE_OPENAI_*` settings, confirm the Foundry deployment is active, and ensure
+the Web App can reach its endpoint. Everything else (dashboard, roster,
+profiles, People Informatics) reads only from the local workbook and works
+without the model.
 
 **"Could not find the data workbook at ..."** The workbook isn't where
 `DATA_XLSX_PATH` points. Check the folder layout above, or set an absolute path
