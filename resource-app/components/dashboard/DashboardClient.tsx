@@ -53,7 +53,13 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     const spare = consultants.filter(isPartiallyOnBench).length;
     const rollingOff = consultants.filter((c) => {
       const w = weeksUntil(c.endDate);
-      return !isSeniorManager(c) && w != null && w >= 0 && w <= 6;
+      return (
+        !isSeniorManager(c) &&
+        c.currentAllocation > 0 &&
+        w != null &&
+        w >= 0 &&
+        w <= 6
+      );
     }).length;
     const utilisationPopulation = consultants.filter(
       (c) => !isSeniorManager(c),
@@ -117,21 +123,17 @@ export function DashboardClient({ consultants }: { consultants: Consultant[] }) 
     for (const c of consultants) {
       if (isOnBench(c)) buckets["On bench"]++;
       else if (isPartiallyOnBench(c)) buckets["Partially on bench"]++;
-      else if (
-        isSeniorManager(c) &&
-        (c.currentAllocation === 0 || c.availableNow > 0)
+      else if (c.currentAllocation >= 1) buckets["Fully allocated"]++;
+
+      const w = weeksUntil(c.endDate);
+      if (
+        !isSeniorManager(c) &&
+        c.currentAllocation > 0 &&
+        w != null &&
+        w >= 0 &&
+        w <= 6
       ) {
-        continue;
-      } else {
-        const w = weeksUntil(c.endDate);
-        if (
-          !isSeniorManager(c) &&
-          w != null &&
-          w >= 0 &&
-          w <= 6
-        )
-          buckets["Rolling off <=6w"]++;
-        else buckets["Fully allocated"]++;
+        buckets["Rolling off <=6w"]++;
       }
     }
     const colors: Record<string, string> = {

@@ -50,10 +50,7 @@ export function applyFilters(list: Consultant[], f: Filters): Consultant[] {
     if (f.availability === "bench" && !isOnBench(c)) return false;
     if (f.availability === "spare" && !isPartiallyOnBench(c)) return false;
     if (f.availability === "full") {
-      const w = weeksUntil(c.endDate);
-      const rollingOffSoon =
-        !isSeniorManager(c) && w != null && w >= 0 && w <= 6;
-      if (c.currentAllocation < 1 || rollingOffSoon) return false;
+      if (c.currentAllocation < 1) return false;
     }
     if (f.availability === "within") {
       const within = f.withinWeeks ?? 6;
